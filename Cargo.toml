@@ -1,0 +1,39 @@
+[package]
+name = "nostr-dag"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "DAG-based optimistic consensus for Nostr"
+
+[dependencies]
+nostr = { path = "../nostr/crates/nostr", default-features = false, features = ["std", "rand"] }
+nostr-relay-pool = { path = "../nostr/crates/nostr-relay-pool" }
+rand = "0.8"
+thiserror = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+nostr-relay-builder = { path = "../nostr/crates/nostr-relay-builder" }
+
+[[bin]]
+name = "federation"
+path = "src/bin/federation.rs"
+
+[[bin]]
+name = "keygen"
+path = "src/bin/keygen.rs"
+
+[[bin]]
+name = "relay"
+path = "src/bin/relay.rs"
+required-features = ["relay"]
+
+[features]
+default = []
+relay = ["dep:nostr-relay-builder"]
+
+[dependencies.nostr-relay-builder]
+path = "../nostr/crates/nostr-relay-builder"
+optional = true

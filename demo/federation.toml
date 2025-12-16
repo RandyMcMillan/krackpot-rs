@@ -1,0 +1,22 @@
+# Federation configuration
+# Regenerate with: cargo run --bin keygen --format toml > demo/federation.toml
+
+[[members]]
+secret_key = "8111ecfb81e0564c9b9ccef7ff612f6a9f3fce5f248a208f3619407e503b3677"
+public_key = "f7514e8321b886099a4e51c80055b20f500c3fa2f413ec6d2cf124dffbcfb116"
+
+[[members]]
+secret_key = "76add92defd545fdf023ad04faf25b079f919acf9412a534dedbdbb74466830a"
+public_key = "a8d28940780397138a55ead4cd262748cacdbec8e0635e347c08fa3733d6168b"
+
+[[members]]
+secret_key = "f0e0ae457c692b28076508094799525e85aa3e89aa79c5fb50614ccb5bf77261"
+public_key = "667cb2016acf35ab4f9cc9c57868d00490498d7a91eb0ad72a64afe30326e8ba"
+
+[[members]]
+secret_key = "9828d1654d1b1ad01659cab6a4d3e36082e0c9d8004d94b56dafac8cf27dc1a8"
+public_key = "b871279ede482b7a657965512fef25e6ebb11c8f6397aa8af38a6761a176ec6b"
+
+[[members]]
+secret_key = "574b2582593f4894d3adfdd20eb4e38c9d4fbb3825e5eefeec37cdd365a15ecd"
+public_key = "e3876c803509eb00fb83ac513050632980e8ec1e9f469148a0485adbf896483f"
