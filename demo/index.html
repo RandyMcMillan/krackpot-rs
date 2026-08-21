@@ -155,7 +155,7 @@
       return {
         name,
         display_name: displayName,
-        about: `${about} quorum_event_id: ${quorumEventId}.`,
+        about,
         picture,
         website,
         quorum_id: quorumId,
@@ -437,13 +437,14 @@
     }
 
     function buildMetadataEvent(author, quorumEventId = author.quorumId) {
+      const baseProfile = author.profile || {};
       const profile = createParticipantProfile({
-        name: author.profile?.name || author.name,
-        displayName: author.profile?.display_name || author.displayName,
-        about: author.profile?.about || `Member ${author.name} of the nostr-dag quorum`,
-        picture: author.profile?.picture || author.picture,
-        website: author.profile?.website || author.website,
-        quorumId: author.profile?.quorum_id || author.quorumId,
+        name: baseProfile.name || author.name,
+        displayName: baseProfile.display_name || author.displayName,
+        about: `${baseProfile.about || author.about} quorum_event_id: ${quorumEventId}.`,
+        picture: baseProfile.picture || author.picture,
+        website: baseProfile.website || author.website,
+        quorumId: baseProfile.quorum_id || author.quorumId,
         quorumEventId,
       });
 
