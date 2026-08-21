@@ -46,7 +46,7 @@
   </div>
 
   <div class="grid">
-    <div class="panel">
+    <form class="panel" id="createForm">
       <h3>New Event</h3>
       <div class="row" style="margin-bottom:8px;">
         <label>Author</label>
@@ -75,9 +75,9 @@
         <input id="customParents" class="mono" style="flex:1;" placeholder="comma-separated event IDs" />
       </div>
       <div class="row" style="margin-top:10px;">
-        <button id="createBtn">Create Event</button>
+        <button id="createBtn" type="submit">Create Event</button>
       </div>
-    </div>
+    </form>
 
     <div class="panel">
       <h3>State</h3>
@@ -109,6 +109,7 @@
     const contentEl = document.getElementById('content');
     const parentsModeEl = document.getElementById('parentsMode');
     const customParentsEl = document.getElementById('customParents');
+    const createFormEl = document.getElementById('createForm');
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
@@ -276,7 +277,10 @@
       setStatus('DAG updated.', true);
     }
 
-    document.getElementById('createBtn').addEventListener('click', createEvent);
+    createFormEl.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await createEvent();
+    });
     document.getElementById('seedBtn').addEventListener('click', seedGenesis);
     document.getElementById('ackRoundBtn').addEventListener('click', runAckRound);
     document.getElementById('resetBtn').addEventListener('click', resetDag);
