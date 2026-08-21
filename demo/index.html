@@ -109,6 +109,7 @@
     const njumpAvailability = new Map();
     const pool = new SimplePool();
     const broadcastRelays = new Set(RELAYS);
+    const watchedRelays = new Set();
     let njumpPollTimer = null;
     let relayDiscoveryStarted = false;
 
@@ -180,6 +181,7 @@
       const normalized = normalizeRelayUrl(url);
       if (!normalized || broadcastRelays.has(normalized)) return false;
       broadcastRelays.add(normalized);
+      watchRelayList(normalized);
       render();
       return true;
     }
@@ -197,8 +199,18 @@
       if (relayDiscoveryStarted) return;
       relayDiscoveryStarted = true;
 
+      for (const relay of RELAYS) {
+        watchRelayList(relay);
+      }
+    }
+
+    function watchRelayList(relayUrl) {
+      const normalized = normalizeRelayUrl(relayUrl);
+      if (!normalized || watchedRelays.has(normalized)) return;
+      watchedRelays.add(normalized);
+
       pool.subscribeMany(
-        RELAYS,
+        [normalized],
         { kinds: [10002], limit: 100 },
         {
           onevent(event) {
