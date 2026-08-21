@@ -118,9 +118,11 @@
     const broadcastRelays = new Set(RELAYS);
     const watchedRelays = new Set();
     const retryTimers = new Map();
+    const broadcastQueue = [];
     let njumpPollTimer = null;
     let participantPollTimer = null;
     let participantPollInFlight = false;
+    let broadcastQueueRunning = false;
     let relayDiscoveryStarted = false;
 
     const statusEl = document.getElementById('status');
@@ -196,6 +198,10 @@
         fn();
       }, delayMs);
       retryTimers.set(key, timer);
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
     }
 
     function registerParticipant(participant) {
@@ -467,31 +473,57 @@
       });
     }
 
-    async function publishEvent(event) {
-      try {
-        await Promise.any(pool.publish([...broadcastRelays], event));
-        setStatus(`Published ${event.kind} to ${broadcastRelays.size} public relays.`, true);
-      } catch (e) {
-        setStatus(`Local only: publish failed (${e.message})`, false);
+    function queueBroadcast(eventsToPublish, successLabel) {
+      broadcastQueue.push({ eventsToPublish, successLabel });
+      if (!broadcastQueueRunning) {
+        void drainBroadcastQueue();
       }
     }
 
-    async function publishEvents(eventsToPublish, successLabel) {
-      const results = await Promise.allSettled(
-        eventsToPublish.map((event) => Promise.any(pool.publish([...broadcastRelays], event)))
-      );
-      const published = results.filter((result) => result.status === 'fulfilled').length;
+    async function drainBroadcastQueue() {
+      if (broadcastQueueRunning) return;
+      broadcastQueueRunning = true;
 
-      if (published > 0) {
-        setStatus(`${successLabel} published to public relays (${published}/${eventsToPublish.length}).`, true);
-      } else {
-        setStatus(`Local only: publish failed for ${successLabel}`, false);
-        scheduleRetry(
-          `${successLabel}:${eventsToPublish.map((event) => event.id).join(',')}`,
-          () => void publishEvents(eventsToPublish, successLabel),
-          5000
-        );
+      try {
+        while (broadcastQueue.length) {
+          const { eventsToPublish, successLabel } = broadcastQueue.shift();
+          let published = 0;
+
+          for (const event of eventsToPublish) {
+            for (const relay of [...broadcastRelays]) {
+              try {
+                await Promise.any(pool.publish([relay], event));
+                published += 1;
+              } catch {
+                // Ignore relay-specific publish failures and keep moving.
+              }
+              await sleep(300);
+            }
+            await sleep(700);
+          }
+
+          if (published > 0) {
+            setStatus(`${successLabel} quietly broadcast to ${broadcastRelays.size} relays.`, true);
+          } else {
+            setStatus(`Local only: broadcast failed for ${successLabel}`, false);
+            scheduleRetry(
+              `${successLabel}:${eventsToPublish.map((event) => event.id).join(',')}`,
+              () => queueBroadcast(eventsToPublish, successLabel),
+              30000
+            );
+          }
+        }
+      } finally {
+        broadcastQueueRunning = false;
       }
+    }
+
+    async function publishEvent(event) {
+      queueBroadcast([event], `Event ${event.kind}`);
+    }
+
+    async function publishEvents(eventsToPublish, successLabel) {
+      queueBroadcast(eventsToPublish, successLabel);
     }
 
     function createAckRoundEvents() {
@@ -583,7 +615,7 @@
       const list = [...events.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
       const threshold = Math.floor(participants.length / 2);
-      const relayList = [...broadcastRelays].sort();
+      const relayList = [...RELAYS].sort();
       const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
       const quorumMemberMarkup = quorumMembers.map((p) => {
         const discovered = discoveredParticipants.get(p.pk);
@@ -614,7 +646,7 @@
             ${quorumMemberMarkup}
           </ul>
         </li>
-        <li>broadcast relays (${broadcastRelays.size}):
+        <li>broadcast relays (${RELAYS.length}):
           <ul style="margin:6px 0 0 16px;">
             ${relayList.map((relay) => `<li style="word-break:break-all;"><span class="mono">${relay}</span></li>`).join('')}
           </ul>
