@@ -65,10 +65,16 @@
     const statusEl = document.getElementById('status');
     const footerStatusEl = document.getElementById('footerStatus');
     const reposEl = document.getElementById('repos');
+    const repoState = new Map();
 
     function setStatus(text) {
       statusEl.textContent = text;
       footerStatusEl.textContent = `git viewer: ${text}`;
+    }
+
+    function setRepoStatus(repoName, text) {
+      repoState.set(repoName, text);
+      renderRepos();
     }
 
     function repoCard(repo, data) {
@@ -76,6 +82,7 @@
         <div class="repo">
           <h3>${repo.name}</h3>
           <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${data.latest || 'n/a'}</span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${data.tags.length ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Files:</span></div>
@@ -92,7 +99,7 @@
       try {
         await fs.promises.stat(`${dir}/.git`);
       } catch {
-        setStatus(`cloning ${repo.name}...`);
+        setRepoStatus(repo.name, 'cloning...');
         await git.clone({
           fs,
           http,
@@ -104,8 +111,9 @@
         });
       }
 
-      setStatus(`fetching tags for ${repo.name}...`);
+      setRepoStatus(repo.name, 'fetching tags...');
       await git.fetch({ fs, http, dir, corsProxy: 'https://cors.isomorphic-git.org', url, tags: true });
+      setRepoStatus(repo.name, 'ready');
     }
 
     async function readRepo(repo) {
@@ -120,12 +128,22 @@
       };
     }
 
+    function renderRepos(results = null) {
+      const data = results || repos.map(() => ({ latest: 'n/a', files: [], tags: [] }));
+      reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
+    }
+
     async function refresh() {
       try {
         setStatus('loading repos...');
-        await Promise.all(repos.map(ensureRepo));
+        renderRepos();
+        const ensured = await Promise.allSettled(repos.map(ensureRepo));
+        const failed = ensured.filter((result) => result.status === 'rejected');
+        if (failed.length) {
+          setStatus(`partial: ${repos.length - failed.length}/${repos.length} repos ready`);
+        }
         const results = await Promise.all(repos.map(readRepo));
-        reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, results[i])).join('');
+        renderRepos(results);
         setStatus('ready');
       } catch (e) {
         setStatus(`unavailable: ${e.message}`);
