@@ -248,8 +248,6 @@
         throw e;
       }
 
-      setRepoStatus(repo.name, 'fetching tags...');
-      await git.fetch({ fs, http, dir, corsProxy: 'https://cors.isomorphic-git.org', url, tags: true, depth: 1 }).catch(() => {});
       setRepoStatus(repo.name, 'ready');
     }
 
