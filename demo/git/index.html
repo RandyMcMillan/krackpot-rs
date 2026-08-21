@@ -148,10 +148,11 @@
       const latest = commits[0]?.commit?.message || 'n/a';
       const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
+      const latestTag = tags.sort((a, b) => a.localeCompare(b)).at(-1) || null;
       return {
         latest,
         files: files.slice(0, 40),
-        tags: tags.slice(0, 20),
+        tags: latestTag ? [latestTag] : [],
         ref,
       };
     }
