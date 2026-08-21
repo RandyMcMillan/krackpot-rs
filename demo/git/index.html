@@ -13,6 +13,8 @@
     .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
     .repo { border:1px solid #334155; border-radius:8px; background:#0b1220; padding:12px; }
     .repo h3 { margin-top:0; }
+    .repo-title { display:flex; align-items:center; gap:8px; margin:0; }
+    .repo-icon { width:16px; height:16px; border-radius:3px; flex:0 0 auto; }
     .status { padding:8px 10px; border-radius:6px; background:#1f2937; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     ul { padding-left:18px; }
@@ -134,8 +136,8 @@
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
       return `
         <div class="repo">
-          <h3 class="row" style="gap:8px;align-items:center;">
-            <img src="${iconUrl}" alt="" width="16" height="16" loading="eager" fetchpriority="high" style="border-radius:3px;" />
+          <h3 class="repo-title">
+            <img class="repo-icon" src="${iconUrl}" alt="" loading="eager" fetchpriority="high" />
             <span>${repo.name}</span>
           </h3>
           <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
