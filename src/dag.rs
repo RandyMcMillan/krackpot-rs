@@ -4,6 +4,9 @@ use nostr::{Event, EventId, PublicKey};
 
 use crate::event::parents_of;
 
+const QUORUM_NUMERATOR: usize = 4;
+const QUORUM_DENOMINATOR: usize = 5;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InsertResult {
     Inserted(EventId),
@@ -28,7 +31,7 @@ pub struct Dag {
 impl Dag {
     pub fn new(participants: impl IntoIterator<Item = PublicKey>) -> Self {
         let participants: BTreeSet<PublicKey> = participants.into_iter().collect();
-        let threshold = participants.len() / 2;
+        let threshold = Self::quorum_threshold(participants.len());
 
         Self {
             events: HashMap::new(),
@@ -40,6 +43,11 @@ impl Dag {
             pending: HashMap::new(),
             waiting_for: HashMap::new(),
         }
+    }
+
+    fn quorum_threshold(participants: usize) -> usize {
+        let required = (participants * QUORUM_NUMERATOR).div_ceil(QUORUM_DENOMINATOR);
+        required.saturating_sub(1)
     }
 
     pub fn insert(&mut self, event: Event) -> InsertResult {
@@ -256,7 +264,7 @@ mod tests {
     }
 
     #[test]
-    fn three_participants_need_two_for_canonical() {
+    fn three_participants_need_three_for_canonical() {
         let alice = Keys::generate();
         let bob = Keys::generate();
         let carol = Keys::generate();
@@ -269,6 +277,11 @@ mod tests {
 
         let ack = create_ack_event(&bob, &[genesis_id]).unwrap();
         unwrap_inserted(dag.insert(ack));
+
+        assert!(!dag.is_canonical(genesis_id));
+
+        let ack2 = create_ack_event(&carol, &[genesis_id]).unwrap();
+        unwrap_inserted(dag.insert(ack2));
 
         assert!(dag.is_canonical(genesis_id));
     }
