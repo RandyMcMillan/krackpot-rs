@@ -197,9 +197,9 @@
       if (relayDiscoveryStarted) return;
       relayDiscoveryStarted = true;
 
-      pool.subscribe(
+      pool.subscribeMany(
         RELAYS,
-        [{ kinds: [10002], limit: 100 }],
+        { kinds: [10002], limit: 100 },
         {
           onevent(event) {
             discoverRelaysFromEvent(event);
@@ -463,7 +463,7 @@
               </div>
             </div>
             <div class="mono">id: ${e.id}</div>
-            <div class="small">parents: ${e.parents.length ? e.parents.map(short).join(', ') : 'none'}</div>
+            <div class="small" style="word-break:break-all;">parents: ${e.parents.length ? e.parents.join(', ') : 'none'}</div>
             <div class="small">content: ${e.content ? e.content.replace(/[<>&]/g, '') : '""'}</div>
           </div>
         `;
