@@ -586,9 +586,6 @@
       const threshold = Math.floor(participants.length / 2);
       const relayList = [...broadcastRelays].sort();
       const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
-      const detectedParticipants = [...discoveredParticipants.values()].sort((a, b) =>
-        (a.name || a.pk).localeCompare(b.name || b.pk)
-      );
       const quorumMemberMarkup = quorumMembers.map((p) => {
         const discovered = discoveredParticipants.get(p.pk);
         const njump = discovered?.eventId ? njumpAvailability.get(discovered.eventId) : null;
@@ -616,11 +613,6 @@
         <li>quorum members (${quorumMembers.length}):
           <ul style="margin:6px 0 0 16px;">
             ${quorumMemberMarkup}
-          </ul>
-        </li>
-        <li>network-detected participants (${detectedParticipants.length}):
-          <ul style="margin:6px 0 0 16px;">
-            ${detectedParticipants.map((p) => `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name || p.displayName || 'unknown'})</span></li>`).join('')}
           </ul>
         </li>
         <li>broadcast relays (${broadcastRelays.size}):
