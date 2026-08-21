@@ -41,7 +41,7 @@ path = "src/bin/relay.rs"
 required-features = ["relay"]
 
 [features]
-default = ["native"]
+default = []
 native = ["dep:tokio", "dep:tracing-subscriber", "dep:nostr-relay-pool"]
 relay = ["native", "dep:nostr-relay-builder"]
 wasm = ["dep:wasm-bindgen", "dep:getrandom", "dep:serde-wasm-bindgen", "dep:serde_json"]
