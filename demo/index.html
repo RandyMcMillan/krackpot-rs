@@ -23,6 +23,7 @@
     .njump-link { background:transparent; padding:0; color:#22c55e; text-decoration:none; }
     .njump-link:hover { text-decoration:underline; }
     .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
+    .avatar { width: 18px; height: 18px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
@@ -640,7 +641,7 @@
         const njumpLink = njump?.available
           ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
-        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name})</span>${njumpLink}</li>`;
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<img class="avatar" src="${p.picture}" alt="${p.name} avatar" />${p.name})</span>${njumpLink}</li>`;
       }).join('');
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
