@@ -816,6 +816,7 @@
       `;
 
       document.getElementById('events').innerHTML = list.map((e) => {
+        const signerProfile = participantProfile(e.author) || {};
         const who = participantLabel(e.author);
         const stateClass = canonical.has(e.id) ? 'canonical' : 'pending';
         const stateText = canonical.has(e.id) ? 'canonical' : 'pending';
@@ -823,10 +824,15 @@
         const njumpMarkup = njump?.available
           ? `<a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
+        const signerUrl = signerProfile.profile_url || nostrProfileUrlForPubkey(e.author);
+        const signerPicture = signerProfile.picture || '';
+        const signerAvatar = signerPicture
+          ? `<a href="${signerUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${signerPicture}" alt="${who} avatar" /></a>`
+          : '';
         return `
           <div class="event">
             <div class="row" style="justify-content:space-between;">
-              <div><b>${who}</b> <span class="small muted">kind ${e.kind}</span></div>
+              <div><b>${signerAvatar}${who}</b> <span class="small muted">kind ${e.kind}</span></div>
               <div class="row">
                 ${njumpMarkup}
                 <span class="chip ${stateClass}">${stateText}</span>
