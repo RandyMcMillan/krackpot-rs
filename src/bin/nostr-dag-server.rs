@@ -101,23 +101,21 @@ async fn handle_connection(mut stream: TcpStream, site_dir: &str) -> io::Result<
 async fn route_path(site_dir: &str, path: &str) -> Result<(Vec<u8>, &'static str), RouteError> {
     let stripped = strip_query(path);
     let normalized = normalize_path(stripped)?;
+    let is_git_route = normalized
+        .components()
+        .next()
+        .and_then(|component| match component {
+            Component::Normal(part) => part.to_str(),
+            _ => None,
+        })
+        == Some("git");
     let file_path = if normalized.is_empty() {
         PathBuf::from(site_dir).join("index.html")
+    } else if is_git_route {
+        PathBuf::from("demo").join("git").join("index.html")
     } else {
         let candidate = PathBuf::from(site_dir).join(&normalized);
-        let is_git_repo_route = normalized
-            .components()
-            .nth(0)
-            .and_then(|c| match c {
-                Component::Normal(part) => part.to_str(),
-                _ => None,
-            })
-            == Some("git")
-            && normalized.components().count() > 1;
-
-        if is_git_repo_route {
-            PathBuf::from(site_dir).join("git/index.html")
-        } else if fs::metadata(&candidate)
+        if fs::metadata(&candidate)
             .await
             .map(|meta| meta.is_dir())
             .unwrap_or(false)
