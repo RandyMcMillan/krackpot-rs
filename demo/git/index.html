@@ -77,6 +77,22 @@
       renderRepos();
     }
 
+    async function removeTree(path) {
+      try {
+        const entries = await fs.promises.readdir(path);
+        for (const entry of entries) {
+          await removeTree(`${path}/${entry}`);
+        }
+        await fs.promises.rmdir(path);
+      } catch {
+        try {
+          await fs.promises.unlink(path);
+        } catch {
+          // ignore missing paths
+        }
+      }
+    }
+
     function repoCard(repo, data) {
       return `
         <div class="repo">
@@ -96,9 +112,10 @@
     async function ensureRepo(repo) {
       const url = repo.url;
       const dir = repo.dir;
+      setRepoStatus(repo.name, 'preparing...');
+      await removeTree(dir);
+      await fs.promises.mkdir(dir, { recursive: true });
       try {
-        await fs.promises.stat(`${dir}/.git`);
-      } catch {
         setRepoStatus(repo.name, 'cloning...');
         await git.clone({
           fs,
@@ -109,6 +126,9 @@
           singleBranch: true,
           depth: 1,
         });
+      } catch (e) {
+        setRepoStatus(repo.name, `clone failed: ${e.message}`);
+        throw e;
       }
 
       setRepoStatus(repo.name, 'fetching tags...');
