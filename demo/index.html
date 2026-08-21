@@ -832,10 +832,6 @@
       const list = [...events.values()]
         .filter((event) => event.kind !== 0)
         .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
-      const ackList = [...events.values()]
-        .filter((event) => event.kind === 21000)
-        .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
-
       const threshold = Math.floor(participants.length / 2);
       const relayList = [...RELAYS].sort();
       const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
@@ -886,19 +882,6 @@
             return `<li style="word-break:break-all;"><span class="mono">${tip}</span> <span class="small muted">(${signerAvatar}${signerName})</span>${njumpLink}</li>`;
           }).join('')
         : '<li>none</li>';
-      const ackMarkup = ackList.length
-        ? ackList.map((e) => {
-            const signerProfile = participantProfile(e.author) || {};
-            const signerName = participantLabel(e.author);
-            const signerUrl = signerProfile.profile_url || nostrProfileUrlForPubkey(e.author);
-            const signerPicture = signerProfile.picture || '';
-            const signerAvatar = signerPicture
-              ? `<a href="${signerUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${signerPicture}" alt="${signerName} avatar" /></a>`
-              : '';
-            return `<li style="word-break:break-all;"><span class="mono">${e.id}</span> <span class="small muted">(${signerAvatar}${signerName})</span> <span class="small muted">${new Date(e.created_at * 1000).toLocaleString()}</span></li>`;
-          }).join('')
-        : '<li>none</li>';
-
       stateListEl.innerHTML = `
         <li>${list.length} events</li>
         <li>${canonical.size} canonical</li>
@@ -914,9 +897,6 @@
           </ul>
         </li>
         <li>Tips:<ul style="margin:6px 0 0 16px;">${tipsMarkup}</ul></li>
-        <li>kind 21000 events (chronological):
-          <ul style="margin:6px 0 0 16px;">${ackMarkup}</ul>
-        </li>
       `;
 
       document.getElementById('events').innerHTML = list.map((e) => {
