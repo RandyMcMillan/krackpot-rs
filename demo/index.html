@@ -149,6 +149,7 @@
       about,
       picture,
       website,
+      alternateSource,
       quorumId,
       quorumEventId = quorumId,
     }) {
@@ -158,6 +159,7 @@
         about,
         picture,
         website,
+        alternate_source: alternateSource,
         quorum_id: quorumId,
         quorum_event_id: quorumEventId,
       };
@@ -169,6 +171,10 @@
 
     function njumpProfileUrlForPubkey(pubkey) {
       return `https://njump.me/${npubEncode(pubkey)}`;
+    }
+
+    function nostrProfileUrlForPubkey(pubkey) {
+      return `https://nostr.com/${npubEncode(pubkey)}`;
     }
 
     function njumpProbeUrlForEvent(eventId) {
@@ -307,6 +313,7 @@
             about: metadata.about || '',
             picture: metadata.picture || '',
             website: metadata.website || '',
+            alternateSource: metadata.alternate_source || metadata.alternateSource || nostrProfileUrlForPubkey(event.pubkey),
             quorumId: metadata.quorum_id || QUORUM_ID,
             quorumEventId: metadata.quorum_event_id || metadata.quorumId || QUORUM_ID,
           });
@@ -407,6 +414,7 @@
           about: `Member ${i + 1} of the nostr-dag quorum`,
           picture: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(name)}`,
           website: SITE_URL,
+          alternateSource: nostrProfileUrlForPubkey(pk),
           quorumId: QUORUM_ID,
         });
         return {
@@ -444,6 +452,7 @@
         about: `${baseProfile.about || author.about} quorum_event_id: ${quorumEventId}.`,
         picture: baseProfile.picture || author.picture,
         website: baseProfile.website || author.website,
+        alternateSource: baseProfile.alternate_source || author.profile?.alternate_source || nostrProfileUrlForPubkey(author.pk),
         quorumId: baseProfile.quorum_id || author.quorumId,
         quorumEventId,
       });
@@ -686,7 +695,10 @@
         const njumpLink = njump?.available
           ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
-        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${njumpProfileUrlForPubkey(p.pk)}" target="_blank" rel="noreferrer noopener" title="Open profile in njump"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name})</span>${njumpLink}</li>`;
+        const altSourceLink = p.profile?.alternate_source
+          ? ` <a class="small muted" href="${p.profile.alternate_source}" target="_blank" rel="noreferrer noopener" title="Alternate profile source">nostr.com</a>`
+          : '';
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${njumpProfileUrlForPubkey(p.pk)}" target="_blank" rel="noreferrer noopener" title="Open profile in njump"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name}${altSourceLink})</span>${njumpLink}</li>`;
       }).join('');
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
