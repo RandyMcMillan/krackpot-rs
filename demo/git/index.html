@@ -277,10 +277,6 @@
           <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${data.latest || 'n/a'}</span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Branches:</span> ${formatList(data.branches)}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${formatList(data.tags)}</div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Files:</span></div>
-          <ul>
-            ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
-          </ul>
           <div class="repo-footer">
             <div class="repo-actions">
               <button class="repo-refresh" type="button" data-refresh-repo="${repo.name}">Refresh</button>
