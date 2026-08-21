@@ -39,7 +39,7 @@ jobs:
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Build wasm package
-        run: wasm-pack build --target web --no-default-features --features wasm --out-dir site/pkg
+        run: wasm-pack build --target web --release --out-dir site/pkg
 
       - name: Copy demo into site
         run: cp demo/index.html site/index.html
