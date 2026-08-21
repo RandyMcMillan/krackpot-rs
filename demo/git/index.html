@@ -202,7 +202,9 @@
 
     function setStatus(text) {
       statusEl.textContent = text;
-      footerStatusEl.textContent = `git viewer: ${text}`;
+      if (footerStatusEl) {
+        footerStatusEl.textContent = `git viewer: ${text}`;
+      }
     }
 
     function setRepoStatus(repoName, text) {
