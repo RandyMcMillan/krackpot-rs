@@ -465,11 +465,15 @@
       const relayList = [...broadcastRelays].sort();
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
+            const tipEvent = events.get(tip);
+            const signer = tipEvent
+              ? (participants.find((p) => p.pk === tipEvent.author)?.name || tipEvent.author.slice(0, 8))
+              : 'unknown';
             const njump = njumpAvailability.get(tip);
             const njumpLink = njump?.available
               ? ` <a class="chip canonical" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
               : '';
-            return `<li style="word-break:break-all;"><span class="mono">${tip}</span>${njumpLink}</li>`;
+            return `<li style="word-break:break-all;"><span class="mono">${tip}</span> <span class="small muted">(${signer})</span>${njumpLink}</li>`;
           }).join('')
         : '<li>none</li>';
 
