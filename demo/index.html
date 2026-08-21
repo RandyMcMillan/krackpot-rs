@@ -20,6 +20,8 @@
     .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
     .canonical { background:#065f46; }
     .pending { background:#78350f; }
+    .njump-link { background:transparent; padding:0; color:#22c55e; text-decoration:none; }
+    .njump-link:hover { text-decoration:underline; }
     .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
@@ -102,6 +104,7 @@
       'wss://nostr.wine',
     ];
     const SITE_URL = 'https://randymcmillan.github.io/nostr-dag';
+    const QUORUM_ID = 'nostr-dag-quorum-5';
     const PARTICIPANT_NAMES = ['alice', 'bob', 'carol', 'dave', 'eve'];
     const PARTICIPANT_DISPLAY_NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'];
 
@@ -309,15 +312,15 @@
         return {
           name,
           displayName,
-          about: `Member ${i + 1} of the nostr-dag quorum.`,
+          about: `Member ${i + 1} of the nostr-dag quorum (quorum_id: ${QUORUM_ID}).`,
           picture: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(name)}`,
           website: SITE_URL,
+          quorumId: QUORUM_ID,
           sk,
           pk,
         };
       });
       discoveredParticipants.clear();
-      for (const participant of participants) registerParticipant(participant);
 
       authorEl.innerHTML = participants
         .map((p, i) => `<option value="${i}">${p.name} (${p.pk.slice(0, 12)}…)</option>`)
@@ -341,6 +344,7 @@
         about: author.about,
         picture: author.picture,
         website: author.website,
+        quorum_id: author.quorumId,
       };
 
       return finalizeEvent({
@@ -356,6 +360,7 @@
       const tags = [
         ...profileEventIds.map((id) => ['e', id]),
         ...participantPubkeys.map((pk) => ['p', pk]),
+        ['d', QUORUM_ID],
         ['t', 'nostr-dag'],
         ['t', 'quorum'],
       ];
@@ -536,6 +541,7 @@
 
       const threshold = Math.floor(participants.length / 2);
       const relayList = [...broadcastRelays].sort();
+      const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
       const detectedParticipants = [...discoveredParticipants.values()].sort((a, b) =>
         (a.name || a.pk).localeCompare(b.name || b.pk)
       );
@@ -545,7 +551,7 @@
             const signer = tipEvent ? participantLabel(tipEvent.author) : 'unknown';
             const njump = njumpAvailability.get(tip);
             const njumpLink = njump?.available
-              ? ` <a class="chip canonical" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+              ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
               : '';
             return `<li style="word-break:break-all;"><span class="mono">${tip}</span> <span class="small muted">(${signer})</span>${njumpLink}</li>`;
           }).join('')
@@ -555,7 +561,12 @@
         <li>${list.length} events</li>
         <li>${canonical.size} canonical</li>
         <li>threshold &gt; ${threshold} of ${participants.length}</li>
-        <li>detected participants (${detectedParticipants.length}):
+        <li>quorum members (${quorumMembers.length}):
+          <ul style="margin:6px 0 0 16px;">
+            ${quorumMembers.map((p) => `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name})</span></li>`).join('')}
+          </ul>
+        </li>
+        <li>network-detected participants (${detectedParticipants.length}):
           <ul style="margin:6px 0 0 16px;">
             ${detectedParticipants.map((p) => `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name || p.displayName || 'unknown'})</span></li>`).join('')}
           </ul>
@@ -574,7 +585,7 @@
         const stateText = canonical.has(e.id) ? 'canonical' : 'pending';
         const njump = njumpAvailability.get(e.id);
         const njumpMarkup = njump?.available
-          ? `<a class="chip canonical" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+          ? `<a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
         return `
           <div class="event">
