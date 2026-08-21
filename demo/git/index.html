@@ -72,7 +72,7 @@
   <div class="panel">
     <div class="row">
       <button id="refreshBtn" type="button">Refresh repos</button>
-      <a class="button" href="/"><span>Back to demo</span></a>
+      <a class="button" href="../"><span>Back to demo</span></a>
       <span id="status" class="status">Starting...</span>
     </div>
   </div>
@@ -135,6 +135,8 @@
       },
     ];
     const faviconCache = new Map();
+    window.gitFs = fs;
+    window.gitRepos = repos;
 
     function warmFavicon(url) {
       if (faviconCache.has(url)) {
@@ -158,6 +160,8 @@
     const pathParts = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
     const selectedRepoName = params.get('repo') || (pathParts[0] === 'git' && pathParts[1] ? decodeURIComponent(pathParts[1]) : null);
     const selectedBranchName = params.get('branch');
+    const siteRoot = new URL('../', window.location.href).pathname;
+    const gitRoot = `${siteRoot}git/`;
 
     function setStatus(text) {
       statusEl.textContent = text;
@@ -175,11 +179,11 @@
         next.set('branch', branch);
       }
       const query = next.toString();
-      return `/git/${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
+      return `${gitRoot}${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
     }
 
     function overviewHref() {
-      return '/git/';
+      return gitRoot;
     }
 
     async function pathExists(path) {
@@ -362,7 +366,7 @@
             next.delete('branch');
           }
           const query = next.toString();
-          window.location.href = `/git/${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
+          window.location.href = `${gitRoot}${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
         });
       }
     }
