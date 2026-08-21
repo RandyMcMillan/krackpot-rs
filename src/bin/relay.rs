@@ -17,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|s| s.parse().ok())
         .unwrap_or(8080);
 
-    let relay = LocalRelay::builder().port(port).build();
+    let relay = LocalRelay::new(RelayBuilder::default().port(port));
     relay.run().await?;
 
     let url = relay.url().await;
