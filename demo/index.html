@@ -110,6 +110,7 @@
     const pool = new SimplePool();
     const broadcastRelays = new Set(RELAYS);
     const watchedRelays = new Set();
+    const retryTimers = new Map();
     let njumpPollTimer = null;
     let relayDiscoveryStarted = false;
 
@@ -165,6 +166,15 @@
     function setStatus(message, ok = true) {
       statusEl.textContent = message;
       statusEl.className = `status ${ok ? 'ok' : 'err'}`;
+    }
+
+    function scheduleRetry(key, fn, delayMs) {
+      if (retryTimers.has(key)) return;
+      const timer = window.setTimeout(() => {
+        retryTimers.delete(key);
+        fn();
+      }, delayMs);
+      retryTimers.set(key, timer);
     }
 
     function normalizeRelayUrl(url) {
@@ -388,6 +398,11 @@
         setStatus(`${successLabel} published to public relays (${published}/${eventsToPublish.length}).`, true);
       } else {
         setStatus(`Local only: publish failed for ${successLabel}`, false);
+        scheduleRetry(
+          `${successLabel}:${eventsToPublish.map((event) => event.id).join(',')}`,
+          () => void publishEvents(eventsToPublish, successLabel),
+          5000
+        );
       }
     }
 
