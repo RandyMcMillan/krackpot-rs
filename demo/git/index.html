@@ -197,6 +197,7 @@
     const repoState = new Map();
     const params = new URLSearchParams(window.location.search);
     const selectedBranchName = params.get('branch');
+    const selectedTagName = params.get('tag');
     const gitRoot = findGitRoot(window.location.pathname);
     const selectedRepoName = params.get('repo') || findSelectedRepoName(window.location.pathname, repos);
 
@@ -217,6 +218,16 @@
       if (branch) {
         next.set('branch', branch);
       }
+      const query = next.toString();
+      return `${gitRoot}${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
+    }
+
+    function repoSelectionHref(repo, { branch = null, tag = null } = {}) {
+      const next = new URLSearchParams(window.location.search);
+      next.delete('branch');
+      next.delete('tag');
+      if (branch) next.set('branch', branch);
+      if (tag) next.set('tag', tag);
       const query = next.toString();
       return `${gitRoot}${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
     }
@@ -335,9 +346,15 @@
       const selectedBranch = selectedBranchName && view.branches.includes(selectedBranchName)
         ? selectedBranchName
         : view.ref;
+      const selectedTag = selectedTagName && view.tags.includes(selectedTagName)
+        ? selectedTagName
+        : '';
       const branchOptions = view.branches.length
         ? view.branches.map((branch) => `<option value="${branch}" ${branch === selectedBranch ? 'selected' : ''}>${branch}</option>`).join('')
         : '<option value="">no branches</option>';
+      const tagOptions = view.tags.length
+        ? view.tags.map((tag) => `<option value="${tag}" ${tag === selectedTag ? 'selected' : ''}>${tag}</option>`).join('')
+        : '<option value="">no tags</option>';
       const commitList = view.commits.length
         ? view.commits.map((entry) => {
             const commit = entry.commit || {};
@@ -365,6 +382,8 @@
             <div class="panel" style="margin:0;">
               <div class="small muted">Branch</div>
               <select id="detailBranchSelect" style="width:100%; margin-top:8px;">${branchOptions}</select>
+              <div class="small muted" style="margin-top:10px;">Tag</div>
+              <select id="detailTagSelect" style="width:100%; margin-top:8px;">${tagOptions}</select>
               <div class="small" style="margin-top:10px;"><span class="muted">Ref:</span> <span class="mono">${view.ref || 'n/a'}</span></div>
               <div class="small" style="margin-top:8px;"><span class="muted">Branches:</span> ${formatList(view.branches)}</div>
               <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${formatList(view.tags)}</div>
@@ -408,16 +427,15 @@
       const data = (results && results[repo.name]) || emptyRepoData();
       repoDetailEl.innerHTML = repoDetail(repo, data);
       const branchSelect = document.getElementById('detailBranchSelect');
+      const tagSelect = document.getElementById('detailTagSelect');
       if (branchSelect) {
         branchSelect.addEventListener('change', () => {
-          const next = new URLSearchParams(window.location.search);
-          if (branchSelect.value) {
-            next.set('branch', branchSelect.value);
-          } else {
-            next.delete('branch');
-          }
-          const query = next.toString();
-          window.location.href = `${gitRoot}${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
+          window.location.href = repoSelectionHref(repo, { branch: branchSelect.value || null });
+        });
+      }
+      if (tagSelect) {
+        tagSelect.addEventListener('change', () => {
+          window.location.href = repoSelectionHref(repo, { tag: tagSelect.value || null });
         });
       }
     }
@@ -433,7 +451,8 @@
         }
         const results = await Promise.all(repos.map((repo) => {
           const isSelected = repo.name === selectedRepoName;
-          return readRepo(repo, isSelected ? 20 : 1, isSelected ? (selectedBranchName || null) : null, isSelected ? 200 : 40);
+          const refOverride = isSelected ? (selectedTagName || selectedBranchName || null) : null;
+          return readRepo(repo, isSelected ? 20 : 1, refOverride, isSelected ? 200 : 40);
         }));
         const resultMap = {};
         repos.forEach((repo, index) => {
@@ -456,7 +475,12 @@
       try {
         setRepoStatus(repo.name, 'refreshing...');
         await ensureRepo(repo);
-        const data = await readRepo(repo, repo.name === selectedRepoName ? 20 : 1, repo.name === selectedRepoName ? (selectedBranchName || null) : null, repo.name === selectedRepoName ? 200 : 40);
+        const data = await readRepo(
+          repo,
+          repo.name === selectedRepoName ? 20 : 1,
+          repo.name === selectedRepoName ? (selectedTagName || selectedBranchName || null) : null,
+          repo.name === selectedRepoName ? 200 : 40
+        );
         const current = {};
         repos.forEach((entry) => {
           current[entry.name] = emptyRepoData();
