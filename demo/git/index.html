@@ -153,7 +153,8 @@
     const reposEl = document.getElementById('repos');
     const repoState = new Map();
     const params = new URLSearchParams(window.location.search);
-    const selectedRepoName = params.get('repo');
+    const pathParts = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+    const selectedRepoName = params.get('repo') || (pathParts[0] === 'git' && pathParts[1] ? decodeURIComponent(pathParts[1]) : null);
     const selectedBranchName = params.get('branch');
 
     function setStatus(text) {
@@ -167,18 +168,16 @@
     }
 
     function repoHref(repo, branch = null) {
-      const next = new URLSearchParams(window.location.search);
-      next.set('repo', repo.name);
+      const next = new URLSearchParams();
       if (branch) {
         next.set('branch', branch);
-      } else {
-        next.delete('branch');
       }
-      return `${window.location.pathname}?${next.toString()}`;
+      const query = next.toString();
+      return `/git/${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
     }
 
     function overviewHref() {
-      return window.location.pathname;
+      return '/git/';
     }
 
     async function pathExists(path) {
@@ -347,13 +346,13 @@
       if (branchSelect) {
         branchSelect.addEventListener('change', () => {
           const next = new URLSearchParams(window.location.search);
-          next.set('repo', repo.name);
           if (branchSelect.value) {
             next.set('branch', branchSelect.value);
           } else {
             next.delete('branch');
           }
-          window.location.search = next.toString();
+          const query = next.toString();
+          window.location.href = `/git/${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
         });
       }
     }
