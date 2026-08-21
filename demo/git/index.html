@@ -224,6 +224,17 @@
       return gitRoot;
     }
 
+    function emptyRepoData() {
+      return {
+        latest: 'n/a',
+        files: [],
+        tags: [],
+        ref: 'n/a',
+        branches: [],
+        commits: [],
+      };
+    }
+
     async function pathExists(path) {
       try {
         await fs.promises.stat(path);
@@ -313,14 +324,15 @@
     }
 
     function repoDetail(repo, data) {
-      const selectedBranch = selectedBranchName && data.branches.includes(selectedBranchName)
+      const view = data || emptyRepoData();
+      const selectedBranch = selectedBranchName && view.branches.includes(selectedBranchName)
         ? selectedBranchName
-        : data.ref;
-      const branchOptions = data.branches.length
-        ? data.branches.map((branch) => `<option value="${branch}" ${branch === selectedBranch ? 'selected' : ''}>${branch}</option>`).join('')
+        : view.ref;
+      const branchOptions = view.branches.length
+        ? view.branches.map((branch) => `<option value="${branch}" ${branch === selectedBranch ? 'selected' : ''}>${branch}</option>`).join('')
         : '<option value="">no branches</option>';
-      const commitList = data.commits.length
-        ? data.commits.map((entry) => {
+      const commitList = view.commits.length
+        ? view.commits.map((entry) => {
             const commit = entry.commit || {};
             const author = commit.author || {};
             return `
@@ -346,10 +358,10 @@
             <div class="panel" style="margin:0;">
               <div class="small muted">Branch</div>
               <select id="detailBranchSelect" style="width:100%; margin-top:8px;">${branchOptions}</select>
-              <div class="small" style="margin-top:10px;"><span class="muted">Ref:</span> <span class="mono">${data.ref || 'n/a'}</span></div>
-              <div class="small" style="margin-top:8px;"><span class="muted">Latest tag:</span> <span class="mono">${data.tags[0] || 'none'}</span></div>
-              <div class="small" style="margin-top:8px;"><span class="muted">Files:</span> ${data.files.length}</div>
-              <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${data.tags.length ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
+              <div class="small" style="margin-top:10px;"><span class="muted">Ref:</span> <span class="mono">${view.ref || 'n/a'}</span></div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Latest tag:</span> <span class="mono">${view.tags[0] || 'none'}</span></div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Files:</span> ${view.files.length}</div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${view.tags.length ? view.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
             </div>
             <div class="panel" style="margin:0;">
               <div class="small muted">Recent commits</div>
@@ -359,7 +371,7 @@
           <div class="panel" style="margin-top:14px;">
             <div class="small muted">Files</div>
             <ul style="margin-top:8px;">
-              ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
+              ${view.files.length ? view.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
             </ul>
           </div>
         </div>
@@ -386,11 +398,7 @@
         repoDetailEl.innerHTML = `<div class="panel">Unknown repo: <span class="mono">${selectedRepoName}</span></div>`;
         return;
       }
-      const data = results && results[repo.name];
-      if (!data) {
-        repoDetailEl.innerHTML = `<div class="panel">Loading ${repo.name}…</div>`;
-        return;
-      }
+      const data = (results && results[repo.name]) || emptyRepoData();
       repoDetailEl.innerHTML = repoDetail(repo, data);
       const branchSelect = document.getElementById('detailBranchSelect');
       if (branchSelect) {
@@ -455,7 +463,7 @@
         if (selectedRepoName) {
           const allResults = {};
           repos.forEach((entry, index) => {
-            allResults[entry.name] = current[entry.name];
+            allResults[entry.name] = current[entry.name] || emptyRepoData();
           });
           renderDetail(allResults);
         }
