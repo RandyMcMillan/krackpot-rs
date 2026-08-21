@@ -413,7 +413,7 @@
       const { loaded, failed, total } = libp2pModuleCounts;
       const done = total > 0 && loaded === total && failed === 0;
       if (done) {
-        libp2pFooterStatusEl.innerHTML = '<span class="p2p-light ready" aria-hidden="true"></span><span>P2P</span>';
+        libp2pFooterStatusEl.innerHTML = '<span class="p2p-light ready" aria-hidden="true"></span>';
         return;
       }
       const moduleText = total ? `libp2p: modules ${loaded}/${total}${failed ? ` (${failed} failed)` : ''}` : 'libp2p: modules loading...';
