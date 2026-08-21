@@ -83,8 +83,7 @@
 
     <div class="panel">
       <h3>State</h3>
-      <div id="summary" class="small muted"></div>
-      <div id="tips" class="small" style="margin:8px 0;"></div>
+      <ul id="stateList" class="small muted" style="margin:8px 0; padding-left:18px;"></ul>
       <div id="events"></div>
     </div>
   </div>
@@ -118,6 +117,7 @@
     const parentsModeEl = document.getElementById('parentsMode');
     const customParentsEl = document.getElementById('customParents');
     const createFormEl = document.getElementById('createForm');
+    const stateListEl = document.getElementById('stateList');
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
@@ -348,11 +348,23 @@
       const tips = currentTips();
       const list = [...events.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
-      document.getElementById('summary').textContent =
-        `${list.length} events • ${canonical.size} canonical • threshold > ${Math.floor(participants.length / 2)} of ${participants.length}`;
+      const threshold = Math.floor(participants.length / 2);
+      const tipsMarkup = tips.length
+        ? tips.map((tip) => {
+            const njump = njumpAvailability.get(tip);
+            const njumpLink = njump?.available
+              ? ` <a class="chip canonical" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+              : '';
+            return `<li><span class="mono">${short(tip)}</span>${njumpLink}</li>`;
+          }).join('')
+        : '<li>none</li>';
 
-      document.getElementById('tips').innerHTML =
-        `<b>Tips:</b> ${tips.length ? tips.map((t) => `<span class="mono">${short(t)}</span>`).join(', ') : 'none'}`;
+      stateListEl.innerHTML = `
+        <li>${list.length} events</li>
+        <li>${canonical.size} canonical</li>
+        <li>threshold &gt; ${threshold} of ${participants.length}</li>
+        <li>Tips:<ul style="margin:6px 0 0 16px;">${tipsMarkup}</ul></li>
+      `;
 
       document.getElementById('events').innerHTML = list.map((e) => {
         const who = participants.find((p) => p.pk === e.author)?.name || e.author.slice(0, 8);
