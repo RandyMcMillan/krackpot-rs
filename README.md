@@ -19,8 +19,18 @@ A proof-of-concept showing how a federation of Nostr keypairs can achieve consen
 ## Running the demo
 
 ```bash
+# Build, test, or generate the Pages site
+just build
+just test
+just site
+
+# Or use Make
+make build
+make test
+make site
+
 # Start relay + 5 federation daemons
-./demo/run.sh
+just demo
 
 # Open in browser
 firefox demo/index.html
