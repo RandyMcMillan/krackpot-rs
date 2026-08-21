@@ -197,7 +197,7 @@
         <div class="repo${activeClass}">
           <h3 class="repo-title">
             <img class="repo-icon" src="${iconUrl}" alt="" loading="eager" fetchpriority="high" />
-            <a href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}">${repo.name}</a>
+            <a href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}" target="_blank" rel="noreferrer noopener">${repo.name}</a>
           </h3>
           <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
@@ -209,7 +209,7 @@
             ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
           </ul>
           <div class="repo-footer">
-            <a class="button repo-open" href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}">Open full viewer</a>
+            <a class="button repo-open" href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}" target="_blank" rel="noreferrer noopener">Open full viewer</a>
           </div>
         </div>
       `;
