@@ -1190,6 +1190,19 @@
     const gitFooterStatusEl = document.getElementById('gitFooterStatus');
     const fs = new LightningFS('fs');
     const dir = '/repo';
+    const nostrDagDir = '/nostr-dag';
+
+    async function cloneRepo(repoUrl, targetDir) {
+      await git.clone({
+        fs,
+        http,
+        dir: targetDir,
+        corsProxy: 'https://cors.isomorphic-git.org',
+        url: repoUrl,
+        singleBranch: true,
+        depth: 1,
+      });
+    }
 
     function setGitStatus(text) {
       if (gitFooterStatusEl) gitFooterStatusEl.textContent = `git: ${text}`;
@@ -1198,15 +1211,9 @@
     async function runGitWorkflow() {
       try {
         setGitStatus('cloning...');
-        await git.clone({
-          fs,
-          http,
-          dir,
-          corsProxy: 'https://cors.isomorphic-git.org',
-          url: 'https://github.com/isomorphic-git/isomorphic-git',
-          singleBranch: true,
-          depth: 1,
-        });
+        await cloneRepo('https://github.com/isomorphic-git/isomorphic-git', dir);
+        setGitStatus('cloning nostr-dag...');
+        await cloneRepo('https://github.com/RandyMcMillan/nostr-dag', nostrDagDir);
 
         setGitStatus('reading history...');
         const commits = await git.log({ fs, dir });
