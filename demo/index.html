@@ -205,16 +205,25 @@
       return found;
     }
 
-    function discoverRelaysFromMetadata(event) {
-      if (event.kind !== 0) return;
-
-      try {
-        const metadata = JSON.parse(event.content || '{}');
-        for (const relay of collectRelayUrls(metadata)) {
-          addBroadcastRelay(relay);
+    function discoverRelaysFromEvent(event) {
+      if (event.kind === 10002) {
+        for (const tag of event.tags) {
+          if (tag[0] === 'r' && tag[1]) {
+            addBroadcastRelay(tag[1]);
+          }
         }
-      } catch {
-        // Ignore malformed metadata.
+        return;
+      }
+
+      if (event.kind === 3) {
+        try {
+          const legacy = JSON.parse(event.content || '{}');
+          for (const relay of collectRelayUrls(legacy)) {
+            addBroadcastRelay(relay);
+          }
+        } catch {
+          // Ignore malformed legacy relay lists.
+        }
       }
     }
 
@@ -234,10 +243,10 @@
 
       pool.subscribeMany(
         [normalized],
-        { kinds: [0], limit: 200 },
+        { kinds: [10002, 3], limit: 200 },
         {
           onevent(event) {
-            discoverRelaysFromMetadata(event);
+            discoverRelaysFromEvent(event);
           },
           oneose() {},
         }
