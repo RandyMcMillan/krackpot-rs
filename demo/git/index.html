@@ -236,6 +236,12 @@
       };
     }
 
+    function formatList(items, emptyLabel = 'none') {
+      return items.length
+        ? items.map((item) => `<span class="mono">${item}</span>`).join(' ')
+        : emptyLabel;
+    }
+
     async function pathExists(path) {
       try {
         await fs.promises.stat(path);
@@ -258,7 +264,8 @@
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${data.ref || 'n/a'}</span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${data.latest || 'n/a'}</span></div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${data.tags.length ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Branches:</span> ${formatList(data.branches)}</div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${formatList(data.tags)}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Files:</span></div>
           <ul>
             ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
@@ -312,14 +319,14 @@
       const latest = (commits[0] && commits[0].commit && commits[0].commit.message) || 'n/a';
       const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
-      const sortedTags = tags.slice().sort((a, b) => a.localeCompare(b));
-      const latestTag = sortedTags.length ? sortedTags[sortedTags.length - 1] : null;
+      const branchesSorted = branches.slice().sort((a, b) => a.localeCompare(b));
+      const tagsSorted = tags.slice().sort((a, b) => a.localeCompare(b));
       return {
         latest,
         files: files.slice(0, fileLimit),
-        tags: latestTag ? [latestTag] : [],
+        tags: tagsSorted,
         ref,
-        branches,
+        branches: branchesSorted,
         commits,
       };
     }
@@ -360,9 +367,9 @@
               <div class="small muted">Branch</div>
               <select id="detailBranchSelect" style="width:100%; margin-top:8px;">${branchOptions}</select>
               <div class="small" style="margin-top:10px;"><span class="muted">Ref:</span> <span class="mono">${view.ref || 'n/a'}</span></div>
-              <div class="small" style="margin-top:8px;"><span class="muted">Latest tag:</span> <span class="mono">${view.tags[0] || 'none'}</span></div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Branches:</span> ${formatList(view.branches)}</div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${formatList(view.tags)}</div>
               <div class="small" style="margin-top:8px;"><span class="muted">Files:</span> ${view.files.length}</div>
-              <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${view.tags.length ? view.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
             </div>
             <div class="panel" style="margin:0;">
               <div class="small muted">Recent commits</div>
@@ -380,7 +387,7 @@
     }
 
     function renderRepos(results = null) {
-      const data = results || repos.map(() => ({ latest: 'n/a', files: [], tags: [] }));
+      const data = results || repos.map(() => emptyRepoData());
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
       reposEl.querySelectorAll('[data-refresh-repo]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -453,11 +460,7 @@
         const data = await readRepo(repo, repo.name === selectedRepoName ? 20 : 1, repo.name === selectedRepoName ? (selectedBranchName || null) : null, repo.name === selectedRepoName ? 200 : 40);
         const current = {};
         repos.forEach((entry) => {
-          current[entry.name] = {
-            latest: 'n/a',
-            files: [],
-            tags: [],
-          };
+          current[entry.name] = emptyRepoData();
         });
         current[repo.name] = data;
         renderRepos(repos.map((entry) => current[entry.name]));
