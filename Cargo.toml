@@ -6,8 +6,8 @@ license = "MIT"
 description = "DAG-based optimistic consensus for Nostr"
 
 [dependencies]
-nostr = { path = "../nostr/crates/nostr", default-features = false, features = ["std", "rand"] }
-nostr-relay-pool = { path = "../nostr/crates/nostr-relay-pool" }
+nostr = { version = "0.44", default-features = false, features = ["std"] }
+nostr-relay-pool = "0.44.3"
 rand = "0.8"
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
@@ -15,7 +15,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
-nostr-relay-builder = { path = "../nostr/crates/nostr-relay-builder" }
+nostr-relay-builder = "0.44.0"
 
 [[bin]]
 name = "federation"
@@ -35,5 +35,5 @@ default = []
 relay = ["dep:nostr-relay-builder"]
 
 [dependencies.nostr-relay-builder]
-path = "../nostr/crates/nostr-relay-builder"
+version = "0.44.0"
 optional = true
