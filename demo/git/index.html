@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nostr-dag Git Viewer</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px 20px 80px; background:#0f172a; color:#e2e8f0; }
+    h1 { margin: 0 0 6px; color: #a78bfa; }
+    .muted { color:#94a3b8; }
+    .panel { background:#111827; border:1px solid #334155; border-radius:8px; padding:14px; margin:14px 0; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+    .repo { border:1px solid #334155; border-radius:8px; background:#0b1220; padding:12px; }
+    .repo h3 { margin-top:0; }
+    .status { padding:8px 10px; border-radius:6px; background:#1f2937; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
+    ul { padding-left:18px; }
+    button, a.button { background:#4c1d95; color:#e2e8f0; border:1px solid #6d28d9; border-radius:6px; padding:8px 12px; text-decoration:none; cursor:pointer; }
+    button:hover, a.button:hover { background:#5b21b6; }
+    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:#020617; border-top:1px solid #334155; padding:10px 20px; z-index:40; }
+    .sticky-footer-inner { max-width:1200px; margin:0 auto; }
+    @media (max-width: 900px) { .grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <h1>nostr-dag Git Viewer</h1>
+  <div class="muted">Browse cloned repositories in the browser. Endpoint: <span class="mono">/git/</span></div>
+
+  <div class="panel">
+    <div class="row">
+      <button id="refreshBtn" type="button">Refresh repos</button>
+      <a class="button" href="/"><span>Back to demo</span></a>
+      <span id="status" class="status">Starting...</span>
+    </div>
+  </div>
+
+  <div class="grid" id="repos"></div>
+
+  <div class="sticky-footer">
+    <div class="sticky-footer-inner small muted">
+      <span id="footerStatus">git viewer: starting...</span>
+    </div>
+  </div>
+
+  <script type="module">
+    import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
+    import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
+    import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
+
+    const fs = new LightningFS('git-viewer');
+    const repos = [
+      {
+        name: 'nostr-dag',
+        url: 'https://github.com/RandyMcMillan/nostr-dag',
+        dir: '/repos/nostr-dag',
+      },
+      {
+        name: 'isomorphic-git',
+        url: 'https://github.com/isomorphic-git/isomorphic-git',
+        dir: '/repos/isomorphic-git',
+      },
+    ];
+
+    const statusEl = document.getElementById('status');
+    const footerStatusEl = document.getElementById('footerStatus');
+    const reposEl = document.getElementById('repos');
+
+    function setStatus(text) {
+      statusEl.textContent = text;
+      footerStatusEl.textContent = `git viewer: ${text}`;
+    }
+
+    function repoCard(repo, data) {
+      return `
+        <div class="repo">
+          <h3>${repo.name}</h3>
+          <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${data.latest || 'n/a'}</span></div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${data.tags.length ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Files:</span></div>
+          <ul>
+            ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
+          </ul>
+        </div>
+      `;
+    }
+
+    async function ensureRepo(repo) {
+      const url = repo.url;
+      const dir = repo.dir;
+      try {
+        await fs.promises.stat(`${dir}/.git`);
+      } catch {
+        setStatus(`cloning ${repo.name}...`);
+        await git.clone({
+          fs,
+          http,
+          dir,
+          corsProxy: 'https://cors.isomorphic-git.org',
+          url,
+          singleBranch: true,
+          depth: 1,
+        });
+      }
+
+      setStatus(`fetching tags for ${repo.name}...`);
+      await git.fetch({ fs, http, dir, corsProxy: 'https://cors.isomorphic-git.org', url, tags: true });
+    }
+
+    async function readRepo(repo) {
+      const commits = await git.log({ fs, dir: repo.dir, depth: 10 });
+      const latest = commits[0]?.commit?.message || 'n/a';
+      const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
+      const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
+      return {
+        latest,
+        files: files.slice(0, 40),
+        tags: tags.slice(0, 20),
+      };
+    }
+
+    async function refresh() {
+      try {
+        setStatus('loading repos...');
+        await Promise.all(repos.map(ensureRepo));
+        const results = await Promise.all(repos.map(readRepo));
+        reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, results[i])).join('');
+        setStatus('ready');
+      } catch (e) {
+        setStatus(`unavailable: ${e.message}`);
+        console.warn('git viewer failed:', e);
+      }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', () => { void refresh(); });
+    void refresh();
+  </script>
+</body>
+</html>

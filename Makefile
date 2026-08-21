@@ -40,6 +40,8 @@ wasm:
 site: wasm
 	mkdir -p site
 	cp demo/index.html site/index.html
+	mkdir -p site/git
+	cp demo/git/index.html site/git/index.html
 
 demo:
 	./demo/run.sh
