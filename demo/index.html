@@ -133,6 +133,7 @@
       'wss://relay.primal.net',
       'wss://nostr.wine',
     ];
+    const CACHE_KEY = 'nostr-dag-demo-cache-v1';
     const SITE_URL = 'https://randymcmillan.github.io/nostr-dag';
     const QUORUM_ID = 'nostr-dag-quorum-5';
     const PARTICIPANT_NAMES = ['alice', 'bob', 'carol', 'dave', 'eve'];
@@ -149,6 +150,7 @@
     const watchedRelays = new Set();
     const retryTimers = new Map();
     const broadcastQueue = [];
+    let cachePersistTimer = null;
     let njumpPollTimer = null;
     let profilePollTimer = null;
     let profilePollInFlight = false;
@@ -324,6 +326,89 @@
       return new Promise((resolve) => window.setTimeout(resolve, ms));
     }
 
+    function scheduleCachePersist() {
+      if (cachePersistTimer) return;
+      cachePersistTimer = window.setTimeout(() => {
+        cachePersistTimer = null;
+        persistCache();
+      }, 750);
+    }
+
+    function persistCache() {
+      try {
+        const payload = {
+          participants: participants.map((participant) => ({
+            pk: participant.pk,
+            name: participant.name,
+            displayName: participant.displayName,
+            about: participant.about,
+            picture: participant.picture,
+            website: participant.website,
+            quorumId: participant.quorumId,
+            profile: participant.profile || null,
+          })),
+          events: [...events.values()],
+          discoveredParticipants: [...discoveredParticipants.values()],
+          njumpAvailability: [...njumpAvailability.entries()],
+          broadcastRelays: [...broadcastRelays],
+        };
+        window.localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+      } catch {
+        // Cache is best-effort only.
+      }
+    }
+
+    function restoreCache() {
+      try {
+        const raw = window.localStorage.getItem(CACHE_KEY);
+        if (!raw) return false;
+
+        const payload = JSON.parse(raw);
+        if (Array.isArray(payload.broadcastRelays)) {
+          broadcastRelays.clear();
+          for (const relay of payload.broadcastRelays) {
+            const normalized = normalizeRelayUrl(relay);
+            if (normalized) broadcastRelays.add(normalized);
+          }
+        }
+
+        if (Array.isArray(payload.discoveredParticipants)) {
+          discoveredParticipants.clear();
+          for (const participant of payload.discoveredParticipants) {
+            if (participant?.pk) discoveredParticipants.set(participant.pk, participant);
+          }
+        }
+
+        if (Array.isArray(payload.njumpAvailability)) {
+          njumpAvailability.clear();
+          for (const [id, value] of payload.njumpAvailability) {
+            if (id) njumpAvailability.set(id, value);
+          }
+        }
+
+        if (Array.isArray(payload.events)) {
+          events.clear();
+          for (const event of payload.events.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id))) {
+            if (!event?.id || !dag) continue;
+            const restoredEvent = {
+              id: event.id,
+              kind: event.kind,
+              pubkey: event.author,
+              created_at: event.created_at,
+              tags: (event.parents || []).map((parentId) => ['e', parentId]),
+              content: event.content,
+            };
+            dag.insert(JSON.stringify(restoredEvent));
+            events.set(event.id, event);
+          }
+        }
+
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
     function registerParticipant(participant) {
       if (!participant?.pk) return;
       const existing = discoveredParticipants.get(participant.pk) || {};
@@ -333,6 +418,7 @@
         profile: participant.profile || existing.profile || null,
         pk: participant.pk,
       });
+      scheduleCachePersist();
     }
 
     function participantLabel(pubkey) {
@@ -395,6 +481,7 @@
       broadcastRelays.add(normalized);
       watchRelayMetadata(normalized);
       render();
+      scheduleCachePersist();
       return true;
     }
 
@@ -660,6 +747,7 @@
         parents: event.tags.filter((t) => t[0] === 'e').map((t) => t[1]),
         status: result.type,
       });
+      scheduleCachePersist();
     }
 
     function queueBroadcast(eventsToPublish, successLabel) {
@@ -928,6 +1016,7 @@
       }).join('');
 
       setStatus('DAG updated.', true);
+      scheduleCachePersist();
     }
 
     createFormEl.addEventListener('submit', async (e) => {
@@ -949,8 +1038,15 @@
 
     try {
       await init();
+      await initParticipants();
+      dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
       startRelayDiscovery();
-      await resetDag();
+      if (restoreCache()) {
+        render();
+        setStatus('Restored cached demo state.', true);
+      } else {
+        await resetDag();
+      }
     } catch (e) {
       setStatus(`WASM load failed: ${e.message}`, false);
     }
