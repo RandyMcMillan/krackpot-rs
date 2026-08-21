@@ -5,36 +5,88 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>nostr-dag Demo</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px 20px 88px; background:#0f172a; color:#e2e8f0; }
-    h1 { margin: 0 0 6px; color: #a78bfa; }
-    .muted { color:#94a3b8; }
-    .panel { background:#111827; border:1px solid #334155; border-radius:8px; padding:14px; margin:14px 0; }
+    :root {
+      color-scheme: light dark;
+      --bg: #f8fafc;
+      --fg: #0f172a;
+      --muted: #475569;
+      --panel: #ffffff;
+      --card: #f8fafc;
+      --border: #cbd5e1;
+      --input: #ffffff;
+      --status-ok: #d1fae5;
+      --status-ok-fg: #065f46;
+      --status-err: #fee2e2;
+      --status-err-fg: #991b1b;
+      --chip-ok: #dcfce7;
+      --chip-ok-fg: #166534;
+      --chip-pending: #fef3c7;
+      --chip-pending-fg: #92400e;
+      --button: #7c3aed;
+      --button-hover: #6d28d9;
+      --button-fg: #ffffff;
+      --footer: #f1f5f9;
+      --heading: #6d28d9;
+      --link: #2563eb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f172a;
+        --fg: #e2e8f0;
+        --muted: #94a3b8;
+        --panel: #111827;
+        --card: #0b1220;
+        --border: #334155;
+        --input: #020617;
+        --status-ok: #065f46;
+        --status-ok-fg: #d1fae5;
+        --status-err: #7f1d1d;
+        --status-err-fg: #fee2e2;
+        --chip-ok: #065f46;
+        --chip-ok-fg: #d1fae5;
+        --chip-pending: #78350f;
+        --chip-pending-fg: #fef3c7;
+        --button: #4c1d95;
+        --button-hover: #5b21b6;
+        --button-fg: #e2e8f0;
+        --footer: #020617;
+        --heading: #a78bfa;
+        --link: #93c5fd;
+      }
+    }
+    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px 20px 88px; background:var(--bg); color:var(--fg); }
+    h1 { margin: 0 0 6px; color: var(--heading); }
+    .muted { color: var(--muted); }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin:14px 0; }
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    input, select, button { background:#020617; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:8px; }
-    button { cursor:pointer; background:#4c1d95; border-color:#6d28d9; }
-    button:hover { background:#5b21b6; }
+    input, select, button { background:var(--input); color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:8px; }
+    button { cursor:pointer; background:var(--button); color:var(--button-fg); }
+    button:hover { background:var(--button-hover); }
+    a { color: var(--link); }
+    a.button { display:inline-flex; align-items:center; gap:6px; background:var(--button); color:var(--button-fg); border:1px solid var(--border); border-radius:6px; padding:8px 12px; text-decoration:none; cursor:pointer; }
+    a.button:hover { background:var(--button-hover); }
     .status { padding:8px 10px; border-radius:6px; margin-top:10px; }
-    .ok { background:#065f46; }
-    .err { background:#7f1d1d; }
+    .ok { background:var(--status-ok); color:var(--status-ok-fg); }
+    .err { background:var(--status-err); color:var(--status-err-fg); }
     .grid { display:grid; grid-template-columns: 1fr 2fr; gap:14px; }
     .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
-    .canonical { background:#065f46; }
-    .pending { background:#78350f; }
-    .njump-link { background:transparent; padding:0; color:#22c55e; text-decoration:none; }
+    .canonical { background:var(--chip-ok); color:var(--chip-ok-fg); }
+    .pending { background:var(--chip-pending); color:var(--chip-pending-fg); }
+    .njump-link { background:transparent; padding:0; color:var(--link); text-decoration:none; }
     .njump-link:hover { text-decoration:underline; }
-    .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
-    .avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; border: 1px solid #334155; background: #020617; }
-    .profile-card { border:1px solid #334155; border-radius:10px; padding:10px; background:#0b1220; cursor:pointer; min-width:180px; }
-    .profile-card:hover { border-color:#8b5cf6; }
+    .event { border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--card); }
+    .avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; border: 1px solid var(--border); background: var(--input); }
+    .profile-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:var(--card); cursor:pointer; min-width:180px; }
+    .profile-card:hover { border-color:var(--heading); }
     .profile-card .avatar { width: 36px; height: 36px; margin-right: 0; }
     .profile-strip { display:flex; gap:10px; flex-wrap:wrap; }
-    .modal-backdrop { position:fixed; inset:0; background:rgba(2,6,23,.72); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(15, 23, 42, .72); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
     .modal-backdrop.open { display:flex; }
-    .modal { max-width:680px; width:100%; background:#111827; border:1px solid #334155; border-radius:12px; padding:16px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+    .modal { max-width:680px; width:100%; background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
     .modal h3 { margin-top:0; }
     .modal .avatar { width: 56px; height: 56px; margin-right: 12px; }
     .close-btn { margin-left:auto; }
-    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:#020617; border-top:1px solid #334155; padding:10px 20px; z-index:40; }
+    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--footer); border-top:1px solid var(--border); padding:10px 20px; z-index:40; }
     .sticky-footer-inner { max-width:1100px; margin:0 auto; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
