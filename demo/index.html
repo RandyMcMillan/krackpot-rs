@@ -121,6 +121,8 @@
     const retryTimers = new Map();
     const broadcastQueue = [];
     let njumpPollTimer = null;
+    let profilePollTimer = null;
+    let profilePollInFlight = false;
     let participantPollTimer = null;
     let participantPollInFlight = false;
     let broadcastQueueRunning = false;
@@ -150,6 +152,7 @@
       picture,
       website,
       alternateSource,
+      profileUrl,
       quorumId,
       quorumEventId = quorumId,
     }) {
@@ -159,6 +162,7 @@
         about,
         picture,
         website,
+        profile_url: profileUrl,
         alternate_source: alternateSource,
         quorum_id: quorumId,
         quorum_event_id: quorumEventId,
@@ -177,6 +181,15 @@
       return `https://nostr.com/${npubEncode(pubkey)}`;
     }
 
+    function profileUrlsForPubkey(pubkey) {
+      return [njumpProfileUrlForPubkey(pubkey), nostrProfileUrlForPubkey(pubkey)];
+    }
+
+    function pickRandomProfileUrl(pubkey) {
+      const urls = profileUrlsForPubkey(pubkey);
+      return urls[Math.floor(Math.random() * urls.length)];
+    }
+
     function njumpProbeUrlForEvent(eventId) {
       return `https://njump.me/image/${neventEncode({ id: eventId })}?v=${Date.now()}`;
     }
@@ -187,6 +200,33 @@
         for (const event of events.values()) {
           if (!njumpAvailability.get(event.id)?.available) {
             probeNjump(event.id);
+          }
+        }
+
+        async function warmProfileUrl(url) {
+          try {
+            await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store', credentials: 'omit' });
+          } catch {
+            // Best-effort only; this is just to spread load across sources.
+          }
+        }
+
+        async function warmParticipantProfiles() {
+          if (profilePollInFlight || participants.length === 0) return;
+          profilePollInFlight = true;
+
+          try {
+            const targets = [
+              ...participants,
+              ...discoveredParticipants.values(),
+            ].filter((participant, index, list) => participant?.pk && list.findIndex((p) => p.pk === participant.pk) === index);
+
+            for (const participant of targets) {
+              await warmProfileUrl(pickRandomProfileUrl(participant.pk));
+              await sleep(250);
+            }
+          } finally {
+            profilePollInFlight = false;
           }
         }
         for (const participant of discoveredParticipants.values()) {
@@ -202,6 +242,13 @@
       participantPollTimer = window.setInterval(() => {
         void pollQuorumMemberMetadata();
       }, 10000);
+    }
+
+    function scheduleProfilePolling() {
+      if (profilePollTimer) return;
+      profilePollTimer = window.setInterval(() => {
+        void warmParticipantProfiles();
+      }, 20000);
     }
 
     function probeNjump(eventId) {
@@ -314,6 +361,7 @@
             picture: metadata.picture || '',
             website: metadata.website || '',
             alternateSource: metadata.alternate_source || metadata.alternateSource || nostrProfileUrlForPubkey(event.pubkey),
+            profileUrl: metadata.profile_url || metadata.profileUrl || njumpProfileUrlForPubkey(event.pubkey),
             quorumId: metadata.quorum_id || QUORUM_ID,
             quorumEventId: metadata.quorum_event_id || metadata.quorumId || QUORUM_ID,
           });
@@ -356,7 +404,9 @@
         watchRelayMetadata(relay);
       }
       scheduleParticipantPolling();
+      scheduleProfilePolling();
       void pollQuorumMemberMetadata();
+      void warmParticipantProfiles();
     }
 
     async function pollQuorumMemberMetadata() {
@@ -415,6 +465,7 @@
           picture: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(name)}`,
           website: SITE_URL,
           alternateSource: nostrProfileUrlForPubkey(pk),
+          profileUrl: njumpProfileUrlForPubkey(pk),
           quorumId: QUORUM_ID,
         });
         return {
@@ -453,6 +504,7 @@
         picture: baseProfile.picture || author.picture,
         website: baseProfile.website || author.website,
         alternateSource: baseProfile.alternate_source || author.profile?.alternate_source || nostrProfileUrlForPubkey(author.pk),
+        profileUrl: baseProfile.profile_url || author.profile?.profile_url || njumpProfileUrlForPubkey(author.pk),
         quorumId: baseProfile.quorum_id || author.quorumId,
         quorumEventId,
       });
@@ -698,7 +750,8 @@
         const altSourceLink = p.profile?.alternate_source
           ? ` <a class="small muted" href="${p.profile.alternate_source}" target="_blank" rel="noreferrer noopener" title="Alternate profile source">nostr.com</a>`
           : '';
-        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${njumpProfileUrlForPubkey(p.pk)}" target="_blank" rel="noreferrer noopener" title="Open profile in njump"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name}${altSourceLink})</span>${njumpLink}</li>`;
+        const profileUrl = p.profile?.profile_url || njumpProfileUrlForPubkey(p.pk);
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${profileUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in njump"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name}${altSourceLink})</span>${njumpLink}</li>`;
       }).join('');
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
