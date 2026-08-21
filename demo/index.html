@@ -312,7 +312,7 @@
         const relays = [...broadcastRelays];
         const authors = participants.map((participant) => participant.pk);
         const maybeEvents = await Promise.resolve(
-          pool.querySync(relays, { kinds: [0], authors, limit: participants.length })
+          pool.querySync(relays, { kinds: [0, 10002, 3], authors, limit: participants.length * 3 })
         );
         const foundEvents = Array.isArray(maybeEvents)
           ? maybeEvents
