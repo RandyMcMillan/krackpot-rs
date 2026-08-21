@@ -534,7 +534,7 @@
       const tips = currentTips();
       const list = [...events.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
-      const quorumRequired = Math.ceil((participants.length * 4) / 5);
+      const threshold = Math.floor(participants.length / 2);
       const relayList = [...broadcastRelays].sort();
       const detectedParticipants = [...discoveredParticipants.values()].sort((a, b) =>
         (a.name || a.pk).localeCompare(b.name || b.pk)
@@ -554,7 +554,7 @@
       stateListEl.innerHTML = `
         <li>${list.length} events</li>
         <li>${canonical.size} canonical</li>
-        <li>${quorumRequired} of ${participants.length} required (threshold &gt; ${quorumRequired - 1} of ${participants.length})</li>
+        <li>threshold &gt; ${threshold} of ${participants.length}</li>
         <li>detected participants (${detectedParticipants.length}):
           <ul style="margin:6px 0 0 16px;">
             ${detectedParticipants.map((p) => `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name || p.displayName || 'unknown'})</span></li>`).join('')}
