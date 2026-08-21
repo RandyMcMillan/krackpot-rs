@@ -763,13 +763,16 @@
       const relayList = [...RELAYS].sort();
       const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
       const quorumMemberMarkup = quorumMembers.map((p) => {
+        const profile = p.profile || {};
         const discovered = discoveredParticipants.get(p.pk);
         const njump = discovered?.eventId ? njumpAvailability.get(discovered.eventId) : null;
         const njumpLink = njump?.available
           ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
-        const profileUrl = p.profile?.profile_url || nostrProfileUrlForPubkey(p.pk);
-        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${profileUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name})</span>${njumpLink}</li>`;
+        const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(p.pk);
+        const picture = profile.picture || p.picture;
+        const name = profile.name || p.name;
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${profileUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${picture}" alt="${name} avatar" /></a>${name})</span>${njumpLink}</li>`;
       }).join('');
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
