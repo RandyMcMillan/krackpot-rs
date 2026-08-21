@@ -497,7 +497,7 @@
       njumpAvailability.clear();
       render();
       setStatus('WASM loaded. DAG reset with 5 participants.', true);
-      void publishProfiles();
+      await publishProfiles();
     }
 
     function buildMetadataEvent(author, quorumEventId = author.quorumId) {
@@ -546,6 +546,10 @@
 
     function canonicalSet() {
       return new Set(JSON.parse(dag.canonical_ids()));
+    }
+
+    function isCanonical(id) {
+      return canonicalSet().has(id);
     }
 
     function resolveParents() {
@@ -706,14 +710,27 @@
 
     async function autoAckUntilCanonical(targetId, maxRounds = 5) {
       for (let round = 1; round <= maxRounds; round++) {
-        if (dag.is_canonical(targetId)) return;
+        if (isCanonical(targetId)) return;
 
         const acks = createAckRoundEvents();
         render();
         await publishEvents(acks, `Auto ack round ${round}`);
 
-        if (dag.is_canonical(targetId)) return;
+        if (isCanonical(targetId)) return;
         await new Promise((resolve) => window.setTimeout(resolve, 500));
+      }
+    }
+
+    async function bootstrapCanonicality(targetIds, maxRounds = 5) {
+      for (let round = 1; round <= maxRounds; round++) {
+        if (targetIds.every((id) => isCanonical(id))) return;
+
+        const acks = createAckRoundEvents();
+        render();
+        await publishEvents(acks, `Bootstrap ack round ${round}`);
+
+        if (targetIds.every((id) => isCanonical(id))) return;
+        await sleep(250);
       }
     }
 
@@ -733,7 +750,11 @@
       }
       render();
       void publishEvents(profileEvents, 'Quorum metadata');
-      void autoAckUntilCanonical(quorumEvent.id);
+      await bootstrapCanonicality([
+        ...seeded.map((event) => event.id),
+        quorumEvent.id,
+        ...profileEvents.map((event) => event.id),
+      ]);
     }
 
     function render() {
