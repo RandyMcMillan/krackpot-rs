@@ -45,9 +45,12 @@
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
     .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
     .repo { border:1px solid var(--border); border-radius:8px; background:var(--card); padding:12px; }
+    .repo.active { border-color: var(--heading); box-shadow: 0 0 0 1px color-mix(in srgb, var(--heading) 18%, transparent); }
     .repo h3 { margin-top:0; }
     .repo-title { display:flex; align-items:center; gap:8px; margin:0; }
+    .repo-title a { color: inherit; text-decoration: none; }
     .repo-icon { width:16px; height:16px; border-radius:3px; flex:0 0 auto; }
+    .repo-open { display:inline-flex; margin-top:10px; }
     .status { padding:8px 10px; border-radius:6px; background:var(--status); border:1px solid var(--border); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     ul { padding-left:18px; }
@@ -71,6 +74,7 @@
     </div>
   </div>
 
+  <div id="repoDetail"></div>
   <div class="grid" id="repos"></div>
 
   <div class="sticky-footer">
@@ -144,8 +148,12 @@
 
     const statusEl = document.getElementById('status');
     const footerStatusEl = document.getElementById('footerStatus');
+    const repoDetailEl = document.getElementById('repoDetail');
     const reposEl = document.getElementById('repos');
     const repoState = new Map();
+    const params = new URLSearchParams(window.location.search);
+    const selectedRepoName = params.get('repo');
+    const selectedBranchName = params.get('branch');
 
     function setStatus(text) {
       statusEl.textContent = text;
@@ -155,6 +163,21 @@
     function setRepoStatus(repoName, text) {
       repoState.set(repoName, text);
       renderRepos();
+    }
+
+    function repoHref(repo, branch = null) {
+      const next = new URLSearchParams(window.location.search);
+      next.set('repo', repo.name);
+      if (branch) {
+        next.set('branch', branch);
+      } else {
+        next.delete('branch');
+      }
+      return `${window.location.pathname}?${next.toString()}`;
+    }
+
+    function overviewHref() {
+      return window.location.pathname;
     }
 
     async function pathExists(path) {
@@ -168,11 +191,12 @@
 
     function repoCard(repo, data) {
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
+      const activeClass = selectedRepoName === repo.name ? ' active' : '';
       return `
-        <div class="repo">
+        <div class="repo${activeClass}">
           <h3 class="repo-title">
             <img class="repo-icon" src="${iconUrl}" alt="" loading="eager" fetchpriority="high" />
-            <span>${repo.name}</span>
+            <a href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}">${repo.name}</a>
           </h3>
           <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
@@ -183,6 +207,7 @@
           <ul>
             ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
           </ul>
+          <a class="button repo-open" href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}">Open full viewer</a>
         </div>
       `;
     }
@@ -217,29 +242,115 @@
       setRepoStatus(repo.name, 'ready');
     }
 
-    async function readRepo(repo) {
+    async function readRepo(repo, commitDepth = 1, refOverride = null, fileLimit = 40) {
       const branches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
-      const ref = branches.includes('main')
+      const ref = refOverride || (branches.includes('main')
         ? 'main'
         : branches.includes('master')
           ? 'master'
-          : branches[0] || 'HEAD';
-      const commits = await git.log({ fs, dir: repo.dir, ref, depth: 1 });
+          : branches[0] || 'HEAD');
+      const commits = await git.log({ fs, dir: repo.dir, ref, depth: commitDepth }).catch(() => []);
       const latest = commits[0]?.commit?.message || 'n/a';
       const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
       const latestTag = tags.sort((a, b) => a.localeCompare(b)).at(-1) || null;
       return {
         latest,
-        files: files.slice(0, 40),
+        files: files.slice(0, fileLimit),
         tags: latestTag ? [latestTag] : [],
         ref,
+        branches,
+        commits,
       };
+    }
+
+    function repoDetail(repo, data) {
+      const selectedBranch = selectedBranchName && data.branches.includes(selectedBranchName)
+        ? selectedBranchName
+        : data.ref;
+      const branchOptions = data.branches.length
+        ? data.branches.map((branch) => `<option value="${branch}" ${branch === selectedBranch ? 'selected' : ''}>${branch}</option>`).join('')
+        : '<option value="">no branches</option>';
+      const commitList = data.commits.length
+        ? data.commits.map((entry) => {
+            const commit = entry.commit || {};
+            return `
+              <li style="margin-bottom:8px;">
+                <div><span class="mono">${entry.oid || ''}</span></div>
+                <div class="small muted">${commit.author?.name || 'unknown'} · ${commit.author?.email || ''} · ${commit.author?.timestamp ? new Date(commit.author.timestamp * 1000).toLocaleString() : ''}</div>
+                <div>${commit.message || 'n/a'}</div>
+              </li>
+            `;
+          }).join('')
+        : '<li>none</li>';
+      return `
+        <div class="panel">
+          <div class="row" style="justify-content:space-between; align-items:flex-start;">
+            <div>
+              <div class="small muted">Repository viewer</div>
+              <h2 style="margin:4px 0 0;">${repo.name}</h2>
+              <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
+            </div>
+            <a class="button" href="${overviewHref()}">Back to all repos</a>
+          </div>
+          <div class="grid" style="margin-top:14px;">
+            <div class="panel" style="margin:0;">
+              <div class="small muted">Branch</div>
+              <select id="detailBranchSelect" style="width:100%; margin-top:8px;">${branchOptions}</select>
+              <div class="small" style="margin-top:10px;"><span class="muted">Ref:</span> <span class="mono">${data.ref || 'n/a'}</span></div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Latest tag:</span> <span class="mono">${data.tags[0] || 'none'}</span></div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Files:</span> ${data.files.length}</div>
+              <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${data.tags.length ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
+            </div>
+            <div class="panel" style="margin:0;">
+              <div class="small muted">Recent commits</div>
+              <ol style="margin-top:8px; padding-left:18px;">${commitList}</ol>
+            </div>
+          </div>
+          <div class="panel" style="margin-top:14px;">
+            <div class="small muted">Files</div>
+            <ul style="margin-top:8px;">
+              ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
+            </ul>
+          </div>
+        </div>
+      `;
     }
 
     function renderRepos(results = null) {
       const data = results || repos.map(() => ({ latest: 'n/a', files: [], tags: [] }));
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
+    }
+
+    function renderDetail(results = null) {
+      if (!selectedRepoName) {
+        repoDetailEl.innerHTML = '';
+        return;
+      }
+      const repo = repos.find((entry) => entry.name === selectedRepoName);
+      if (!repo) {
+        repoDetailEl.innerHTML = `<div class="panel">Unknown repo: <span class="mono">${selectedRepoName}</span></div>`;
+        return;
+      }
+      const data = results?.[repo.name];
+      if (!data) {
+        repoDetailEl.innerHTML = `<div class="panel">Loading ${repo.name}…</div>`;
+        return;
+      }
+      repoDetailEl.innerHTML = repoDetail(repo, data);
+      const branchSelect = document.getElementById('detailBranchSelect');
+      if (branchSelect) {
+        branchSelect.addEventListener('change', () => {
+          const next = new URLSearchParams(window.location.search);
+          next.set('repo', repo.name);
+          if (branchSelect.value) {
+            next.set('branch', branchSelect.value);
+          } else {
+            next.delete('branch');
+          }
+          window.location.search = next.toString();
+        });
+      }
     }
 
     async function refresh() {
@@ -251,8 +362,13 @@
         if (failed.length) {
           setStatus(`partial: ${repos.length - failed.length}/${repos.length} repos ready`);
         }
-        const results = await Promise.all(repos.map(readRepo));
+        const results = await Promise.all(repos.map((repo) => {
+          const isSelected = repo.name === selectedRepoName;
+          return readRepo(repo, isSelected ? 20 : 1, isSelected ? (selectedBranchName || null) : null, isSelected ? 200 : 40);
+        }));
+        const resultMap = Object.fromEntries(repos.map((repo, index) => [repo.name, results[index]]));
         renderRepos(results);
+        renderDetail(resultMap);
         setStatus('ready');
       } catch (e) {
         setStatus(`unavailable: ${e.message}`);
