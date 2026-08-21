@@ -55,10 +55,10 @@
       <div class="row" style="margin-bottom:8px;">
         <label>Kind</label>
         <select id="kind">
+          <option value="21000" selected>21000 (ack)</option>
           <option value="0">0 (metadata)</option>
           <option value="1">1 (text note)</option>
           <option value="42">42 (message)</option>
-          <option value="21000">21000 (ack)</option>
         </select>
       </div>
       <div class="row" style="margin-bottom:8px;">
@@ -108,6 +108,7 @@
     const FED_COUNT = 5;
     let dag = null;
     let participants = [];
+    const discoveredParticipants = new Map();
     const events = new Map();
     const njumpAvailability = new Map();
     const pool = new SimplePool();
@@ -180,6 +181,22 @@
       retryTimers.set(key, timer);
     }
 
+    function registerParticipant(participant) {
+      if (!participant?.pk) return;
+      const existing = discoveredParticipants.get(participant.pk) || {};
+      discoveredParticipants.set(participant.pk, {
+        ...existing,
+        ...participant,
+        pk: participant.pk,
+      });
+    }
+
+    function participantLabel(pubkey) {
+      return discoveredParticipants.get(pubkey)?.name
+        || participants.find((p) => p.pk === pubkey)?.name
+        || pubkey.slice(0, 8);
+    }
+
     function normalizeRelayUrl(url) {
       try {
         const parsed = new URL(url);
@@ -218,12 +235,31 @@
       return found;
     }
 
-    function discoverRelaysFromEvent(event) {
+    function discoverFromEvent(event) {
       if (event.kind === 10002) {
         for (const tag of event.tags) {
-          if (tag[0] === 'r' && tag[1]) {
-            addBroadcastRelay(tag[1]);
+          if (tag[0] === 'r' && tag[1]) addBroadcastRelay(tag[1]);
+        }
+        return;
+      }
+
+      if (event.kind === 0) {
+        try {
+          const metadata = JSON.parse(event.content || '{}');
+          registerParticipant({
+            pk: event.pubkey,
+            name: metadata.name,
+            displayName: metadata.display_name || metadata.displayName,
+            about: metadata.about,
+            picture: metadata.picture,
+            website: metadata.website,
+          });
+          for (const relay of collectRelayUrls(metadata)) {
+            addBroadcastRelay(relay);
           }
+          render();
+        } catch {
+          // Ignore malformed metadata.
         }
         return;
       }
@@ -231,9 +267,7 @@
       if (event.kind === 3) {
         try {
           const legacy = JSON.parse(event.content || '{}');
-          for (const relay of collectRelayUrls(legacy)) {
-            addBroadcastRelay(relay);
-          }
+          for (const relay of collectRelayUrls(legacy)) addBroadcastRelay(relay);
         } catch {
           // Ignore malformed legacy relay lists.
         }
@@ -256,10 +290,10 @@
 
       pool.subscribeMany(
         [normalized],
-        { kinds: [10002, 3], limit: 200 },
+        { kinds: [0, 10002, 3], limit: 200 },
         {
           onevent(event) {
-            discoverRelaysFromEvent(event);
+            discoverFromEvent(event);
           },
           oneose() {},
         }
@@ -282,6 +316,8 @@
           pk,
         };
       });
+      discoveredParticipants.clear();
+      for (const participant of participants) registerParticipant(participant);
 
       authorEl.innerHTML = participants
         .map((p, i) => `<option value="${i}">${p.name} (${p.pk.slice(0, 12)}…)</option>`)
@@ -409,6 +445,17 @@
       }
     }
 
+    function createAckRoundEvents() {
+      const tips = currentTips();
+      const acks = [];
+      for (const author of participants) {
+        const event = buildEvent(author, 21000, '', tips);
+        insertEvent(event);
+        acks.push(event);
+      }
+      return acks;
+    }
+
     async function createEvent() {
       try {
         const author = participants[Number(authorEl.value)];
@@ -444,17 +491,24 @@
 
     async function runAckRound() {
       try {
-        const tips = currentTips();
-        const acks = [];
-        for (const author of participants) {
-          const event = buildEvent(author, 21000, '', tips);
-          insertEvent(event);
-          acks.push(event);
-        }
+        const acks = createAckRoundEvents();
         render();
         await publishEvents(acks, 'Ack round');
       } catch (e) {
         setStatus(`Ack round failed: ${e.message}`, false);
+      }
+    }
+
+    async function autoAckUntilCanonical(targetId, maxRounds = 5) {
+      for (let round = 1; round <= maxRounds; round++) {
+        if (dag.is_canonical(targetId)) return;
+
+        const acks = createAckRoundEvents();
+        render();
+        await publishEvents(acks, `Auto ack round ${round}`);
+
+        if (dag.is_canonical(targetId)) return;
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
       }
     }
 
@@ -472,6 +526,7 @@
       insertEvent(quorumEvent);
       render();
       await publishEvents([quorumEvent], 'Quorum note');
+      await autoAckUntilCanonical(quorumEvent.id);
     }
 
     function render() {
@@ -481,12 +536,13 @@
 
       const quorumRequired = Math.ceil((participants.length * 4) / 5);
       const relayList = [...broadcastRelays].sort();
+      const detectedParticipants = [...discoveredParticipants.values()].sort((a, b) =>
+        (a.name || a.pk).localeCompare(b.name || b.pk)
+      );
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
             const tipEvent = events.get(tip);
-            const signer = tipEvent
-              ? (participants.find((p) => p.pk === tipEvent.author)?.name || tipEvent.author.slice(0, 8))
-              : 'unknown';
+            const signer = tipEvent ? participantLabel(tipEvent.author) : 'unknown';
             const njump = njumpAvailability.get(tip);
             const njumpLink = njump?.available
               ? ` <a class="chip canonical" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
@@ -498,7 +554,12 @@
       stateListEl.innerHTML = `
         <li>${list.length} events</li>
         <li>${canonical.size} canonical</li>
-        <li>threshold &gt; ${quorumRequired - 1} of ${participants.length} (${quorumRequired} of ${participants.length} required)</li>
+        <li>${quorumRequired} of ${participants.length} required (threshold &gt; ${quorumRequired - 1} of ${participants.length})</li>
+        <li>detected participants (${detectedParticipants.length}):
+          <ul style="margin:6px 0 0 16px;">
+            ${detectedParticipants.map((p) => `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name || p.displayName || 'unknown'})</span></li>`).join('')}
+          </ul>
+        </li>
         <li>broadcast relays (${broadcastRelays.size}):
           <ul style="margin:6px 0 0 16px;">
             ${relayList.map((relay) => `<li style="word-break:break-all;"><span class="mono">${relay}</span></li>`).join('')}
@@ -508,7 +569,7 @@
       `;
 
       document.getElementById('events').innerHTML = list.map((e) => {
-        const who = participants.find((p) => p.pk === e.author)?.name || e.author.slice(0, 8);
+        const who = participantLabel(e.author);
         const stateClass = canonical.has(e.id) ? 'canonical' : 'pending';
         const stateText = canonical.has(e.id) ? 'canonical' : 'pending';
         const njump = njumpAvailability.get(e.id);
