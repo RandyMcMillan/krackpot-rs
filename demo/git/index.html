@@ -91,6 +91,20 @@
         dir: '/repos/lightning-fs',
       },
     ];
+    const faviconCache = new Map();
+
+    function warmFavicon(url) {
+      if (faviconCache.has(url)) {
+        return;
+      }
+      const image = new Image();
+      image.decoding = 'async';
+      image.referrerPolicy = 'no-referrer';
+      image.src = url;
+      faviconCache.set(url, image);
+    }
+
+    repos.forEach((repo) => warmFavicon(`${new URL(repo.url).origin}/favicon.ico`));
 
     const statusEl = document.getElementById('status');
     const footerStatusEl = document.getElementById('footerStatus');
@@ -121,7 +135,7 @@
       return `
         <div class="repo">
           <h3 class="row" style="gap:8px;align-items:center;">
-            <img src="${iconUrl}" alt="" width="16" height="16" style="border-radius:3px;" />
+            <img src="${iconUrl}" alt="" width="16" height="16" loading="eager" fetchpriority="high" style="border-radius:3px;" />
             <span>${repo.name}</span>
           </h3>
           <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
