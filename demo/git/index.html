@@ -60,6 +60,36 @@
         url: 'https://github.com/isomorphic-git/isomorphic-git',
         dir: '/repos/isomorphic-git',
       },
+      {
+        name: 'nostr-tools',
+        url: 'https://github.com/nbd-wtf/nostr-tools',
+        dir: '/repos/nostr-tools',
+      },
+      {
+        name: 'js-libp2p',
+        url: 'https://github.com/libp2p/js-libp2p',
+        dir: '/repos/js-libp2p',
+      },
+      {
+        name: 'js-libp2p-noise',
+        url: 'https://github.com/ChainSafe/js-libp2p-noise',
+        dir: '/repos/js-libp2p-noise',
+      },
+      {
+        name: 'js-libp2p-yamux',
+        url: 'https://github.com/ChainSafe/js-libp2p-yamux',
+        dir: '/repos/js-libp2p-yamux',
+      },
+      {
+        name: 'discv5',
+        url: 'https://github.com/ChainSafe/discv5',
+        dir: '/repos/discv5',
+      },
+      {
+        name: 'lightning-fs',
+        url: 'https://github.com/isomorphic-git/lightning-fs',
+        dir: '/repos/lightning-fs',
+      },
     ];
 
     const statusEl = document.getElementById('status');
@@ -77,19 +107,12 @@
       renderRepos();
     }
 
-    async function removeTree(path) {
+    async function pathExists(path) {
       try {
-        const entries = await fs.promises.readdir(path);
-        for (const entry of entries) {
-          await removeTree(`${path}/${entry}`);
-        }
-        await fs.promises.rmdir(path);
+        await fs.promises.stat(path);
+        return true;
       } catch {
-        try {
-          await fs.promises.unlink(path);
-        } catch {
-          // ignore missing paths
-        }
+        return false;
       }
     }
 
@@ -113,27 +136,30 @@
     async function ensureRepo(repo) {
       const url = repo.url;
       const dir = repo.dir;
-      setRepoStatus(repo.name, 'preparing...');
-      await removeTree(dir);
-      await fs.promises.mkdir(dir, { recursive: true });
       try {
-        setRepoStatus(repo.name, 'cloning...');
-        await git.clone({
-          fs,
-          http,
-          dir,
-          corsProxy: 'https://cors.isomorphic-git.org',
-          url,
-          singleBranch: true,
-          depth: 1,
-        });
+        const exists = await pathExists(dir);
+        if (!exists) {
+          setRepoStatus(repo.name, 'cloning...');
+          await fs.promises.mkdir(dir, { recursive: true });
+          await git.clone({
+            fs,
+            http,
+            dir,
+            corsProxy: 'https://cors.isomorphic-git.org',
+            url,
+            singleBranch: true,
+            depth: 1,
+          });
+        } else {
+          setRepoStatus(repo.name, 'reusing cached clone...');
+        }
       } catch (e) {
-        setRepoStatus(repo.name, `clone failed: ${e.message}`);
+        setRepoStatus(repo.name, `prepare failed: ${e.message}`);
         throw e;
       }
 
       setRepoStatus(repo.name, 'fetching tags...');
-      await git.fetch({ fs, http, dir, corsProxy: 'https://cors.isomorphic-git.org', url, tags: true });
+      await git.fetch({ fs, http, dir, corsProxy: 'https://cors.isomorphic-git.org', url, tags: true, depth: 1 }).catch(() => {});
       setRepoStatus(repo.name, 'ready');
     }
 
