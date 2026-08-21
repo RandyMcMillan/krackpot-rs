@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>nostr-dag Demo</title>
   <style>
-    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; background:#0f172a; color:#e2e8f0; }
+    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px 20px 88px; background:#0f172a; color:#e2e8f0; }
     h1 { margin: 0 0 6px; color: #a78bfa; }
     .muted { color:#94a3b8; }
     .panel { background:#111827; border:1px solid #334155; border-radius:8px; padding:14px; margin:14px 0; }
@@ -34,6 +34,8 @@
     .modal h3 { margin-top:0; }
     .modal .avatar { width: 56px; height: 56px; margin-right: 12px; }
     .close-btn { margin-left:auto; }
+    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:#020617; border-top:1px solid #334155; padding:10px 20px; z-index:40; }
+    .sticky-footer-inner { max-width:1100px; margin:0 auto; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
@@ -124,6 +126,12 @@
     import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
     import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
     import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
+    import { createLibp2p } from 'https://esm.sh/libp2p';
+    import { identify } from 'https://esm.sh/@libp2p/identify';
+    import { webSockets } from 'https://esm.sh/@libp2p/websockets';
+    import { webRTC } from 'https://esm.sh/@libp2p/webrtc';
+    import { noise } from 'https://esm.sh/@chainsafe/libp2p-noise';
+    import { yamux } from 'https://esm.sh/@chainsafe/libp2p-yamux';
 
     const RELAYS = [
       'wss://relay.damus.io',
@@ -157,6 +165,7 @@
     let participantPollInFlight = false;
     let broadcastQueueRunning = false;
     let relayDiscoveryStarted = false;
+    let libp2pPeerId = 'starting...';
 
     const statusEl = document.getElementById('status');
     const authorEl = document.getElementById('author');
@@ -176,6 +185,7 @@
     const resetBtnEl = document.getElementById('resetBtn');
     const seedBtnEl = document.getElementById('seedBtn');
     const ackRoundBtnEl = document.getElementById('ackRoundBtn');
+    const libp2pFooterStatusEl = document.getElementById('libp2pFooterStatus');
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
@@ -319,6 +329,29 @@
       resetBtnEl.disabled = !enabled;
       seedBtnEl.disabled = !enabled;
       ackRoundBtnEl.disabled = !enabled;
+    }
+
+    function setLibp2pStatus(text) {
+      libp2pPeerId = text;
+      if (libp2pFooterStatusEl) libp2pFooterStatusEl.textContent = `libp2p: ${text}`;
+      render();
+    }
+
+    async function initLibp2pNode() {
+      try {
+        const node = await createLibp2p({
+          transports: [webSockets(), webRTC()],
+          connectionEncrypters: [noise()],
+          streamMuxers: [yamux()],
+          services: { identify: identify() },
+        });
+        await node.start();
+        setLibp2pStatus(node.peerId.toString());
+        console.log('Peer ID:', node.peerId.toString());
+      } catch (e) {
+        setLibp2pStatus('unavailable');
+        console.warn('libp2p bootstrap failed:', e);
+      }
     }
 
     function scheduleRetry(key, fn, delayMs) {
@@ -1062,6 +1095,7 @@
       await initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
       startRelayDiscovery();
+      void initLibp2pNode();
       if (restoreCache()) {
         render();
         setStatus('Restored cached demo state.', true);
@@ -1073,5 +1107,10 @@
       setControlsEnabled(true);
     }
   </script>
+  <footer class="sticky-footer">
+    <div class="sticky-footer-inner small muted">
+      <span id="libp2pFooterStatus">libp2p: starting...</span>
+    </div>
+  </footer>
 </body>
 </html>
