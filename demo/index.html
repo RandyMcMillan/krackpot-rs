@@ -181,17 +181,40 @@
       const normalized = normalizeRelayUrl(url);
       if (!normalized || broadcastRelays.has(normalized)) return false;
       broadcastRelays.add(normalized);
-      watchRelayList(normalized);
+      watchRelayMetadata(normalized);
       render();
       return true;
     }
 
-    function discoverRelaysFromEvent(event) {
-      if (event.kind !== 10002) return;
-      for (const tag of event.tags) {
-        if (tag[0] === 'r' && tag[1]) {
-          addBroadcastRelay(tag[1]);
+    function collectRelayUrls(value, found = new Set()) {
+      if (typeof value === 'string') {
+        const normalized = normalizeRelayUrl(value);
+        if (normalized) found.add(normalized);
+        return found;
+      }
+
+      if (Array.isArray(value)) {
+        for (const item of value) collectRelayUrls(item, found);
+        return found;
+      }
+
+      if (value && typeof value === 'object') {
+        for (const item of Object.values(value)) collectRelayUrls(item, found);
+      }
+
+      return found;
+    }
+
+    function discoverRelaysFromMetadata(event) {
+      if (event.kind !== 0) return;
+
+      try {
+        const metadata = JSON.parse(event.content || '{}');
+        for (const relay of collectRelayUrls(metadata)) {
+          addBroadcastRelay(relay);
         }
+      } catch {
+        // Ignore malformed metadata.
       }
     }
 
@@ -200,21 +223,21 @@
       relayDiscoveryStarted = true;
 
       for (const relay of RELAYS) {
-        watchRelayList(relay);
+        watchRelayMetadata(relay);
       }
     }
 
-    function watchRelayList(relayUrl) {
+    function watchRelayMetadata(relayUrl) {
       const normalized = normalizeRelayUrl(relayUrl);
       if (!normalized || watchedRelays.has(normalized)) return;
       watchedRelays.add(normalized);
 
       pool.subscribeMany(
         [normalized],
-        { kinds: [10002], limit: 100 },
+        { kinds: [0], limit: 200 },
         {
           onevent(event) {
-            discoverRelaysFromEvent(event);
+            discoverRelaysFromMetadata(event);
           },
           oneose() {},
         }
@@ -271,26 +294,9 @@
       }, author.sk);
     }
 
-    function buildQuorumNoteEvent(author, profileEventIds, participantPubkeys) {
-      const tags = [
-        ...profileEventIds.map((id) => ['e', id]),
-        ...participantPubkeys.map((pk) => ['p', pk]),
-        ['t', 'nostr-dag'],
-        ['t', 'quorum'],
-      ];
-
-      return finalizeEvent({
-        kind: 1,
-        created_at: Math.floor(Date.now() / 1000),
-        tags,
-        content: `Member ${author.displayName} of the nostr-dag quorum.`,
-        pubkey: author.pk,
-      }, author.sk);
-    }
-
     function buildQuorumGroupEvent(author, profileEventIds, participantPubkeys) {
       const tags = [
-        ['e', profileEventIds.join(',')],
+        ...profileEventIds.map((id) => ['e', id]),
         ...participantPubkeys.map((pk) => ['p', pk]),
         ['t', 'nostr-dag'],
         ['t', 'quorum'],
