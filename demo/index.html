@@ -119,6 +119,8 @@
     const watchedRelays = new Set();
     const retryTimers = new Map();
     let njumpPollTimer = null;
+    let participantPollTimer = null;
+    let participantPollInFlight = false;
     let relayDiscoveryStarted = false;
 
     const statusEl = document.getElementById('status');
@@ -148,7 +150,19 @@
             probeNjump(event.id);
           }
         }
+        for (const participant of discoveredParticipants.values()) {
+          if (participant.eventId && !njumpAvailability.get(participant.eventId)?.available) {
+            probeNjump(participant.eventId);
+          }
+        }
       }, 15000);
+    }
+
+    function scheduleParticipantPolling() {
+      if (participantPollTimer) return;
+      participantPollTimer = window.setInterval(() => {
+        void pollQuorumMemberMetadata();
+      }, 10000);
     }
 
     function probeNjump(eventId) {
@@ -251,12 +265,14 @@
           const metadata = JSON.parse(event.content || '{}');
           registerParticipant({
             pk: event.pubkey,
+            eventId: event.id,
             name: metadata.name,
             displayName: metadata.display_name || metadata.displayName,
             about: metadata.about,
             picture: metadata.picture,
             website: metadata.website,
           });
+          probeNjump(event.id);
           for (const relay of collectRelayUrls(metadata)) {
             addBroadcastRelay(relay);
           }
@@ -283,6 +299,35 @@
 
       for (const relay of RELAYS) {
         watchRelayMetadata(relay);
+      }
+      scheduleParticipantPolling();
+      void pollQuorumMemberMetadata();
+    }
+
+    async function pollQuorumMemberMetadata() {
+      if (participantPollInFlight || participants.length === 0) return;
+      participantPollInFlight = true;
+
+      try {
+        const relays = [...broadcastRelays];
+        const authors = participants.map((participant) => participant.pk);
+        const maybeEvents = await Promise.resolve(
+          pool.querySync(relays, { kinds: [0], authors, limit: participants.length })
+        );
+        const foundEvents = Array.isArray(maybeEvents)
+          ? maybeEvents
+          : maybeEvents
+            ? [maybeEvents]
+            : [];
+
+        for (const event of foundEvents) {
+          discoverFromEvent(event);
+          probeNjump(event.id);
+        }
+      } catch (e) {
+        setStatus(`Participant metadata poll failed: ${e.message}`, false);
+      } finally {
+        participantPollInFlight = false;
       }
     }
 
@@ -544,6 +589,14 @@
       const detectedParticipants = [...discoveredParticipants.values()].sort((a, b) =>
         (a.name || a.pk).localeCompare(b.name || b.pk)
       );
+      const quorumMemberMarkup = quorumMembers.map((p) => {
+        const discovered = discoveredParticipants.get(p.pk);
+        const njump = discovered?.eventId ? njumpAvailability.get(discovered.eventId) : null;
+        const njumpLink = njump?.available
+          ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+          : '';
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name})</span>${njumpLink}</li>`;
+      }).join('');
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
             const tipEvent = events.get(tip);
@@ -562,7 +615,7 @@
         <li>threshold &gt; ${threshold} of ${participants.length}</li>
         <li>quorum members (${quorumMembers.length}):
           <ul style="margin:6px 0 0 16px;">
-            ${quorumMembers.map((p) => `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(${p.name})</span></li>`).join('')}
+            ${quorumMemberMarkup}
           </ul>
         </li>
         <li>network-detected participants (${detectedParticipants.length}):
