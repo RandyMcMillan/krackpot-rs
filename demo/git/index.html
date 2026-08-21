@@ -50,7 +50,8 @@
     .repo-title { display:flex; align-items:center; gap:8px; margin:0; }
     .repo-title a { color: inherit; text-decoration: none; }
     .repo-icon { width:16px; height:16px; border-radius:3px; flex:0 0 auto; }
-    .repo-open { display:inline-flex; margin-top:10px; }
+    .repo-footer { display:flex; justify-content:flex-end; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
+    .repo-open { display:inline-flex; }
     .status { padding:8px 10px; border-radius:6px; background:var(--status); border:1px solid var(--border); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     ul { padding-left:18px; }
@@ -207,7 +208,9 @@
           <ul>
             ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
           </ul>
-          <a class="button repo-open" href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}">Open full viewer</a>
+          <div class="repo-footer">
+            <a class="button repo-open" href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}">Open full viewer</a>
+          </div>
         </div>
       `;
     }
