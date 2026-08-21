@@ -24,7 +24,6 @@
     .njump-link:hover { text-decoration:underline; }
     .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
     .avatar { width: 18px; height: 18px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; }
-    .site-ico { width: 14px; height: 14px; vertical-align: middle; margin-left: 6px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
@@ -182,17 +181,13 @@
       return `https://nostr.com/${npubEncode(pubkey)}`;
     }
 
-    function nostrProfileIconUrl() {
-      return 'https://nostr.com/favicon.ico';
-    }
-
     function profileUrlsForPubkey(pubkey) {
-      return [njumpProfileUrlForPubkey(pubkey), nostrProfileUrlForPubkey(pubkey)];
+      return [nostrProfileUrlForPubkey(pubkey), njumpProfileUrlForPubkey(pubkey)];
     }
 
     function pickRandomProfileUrl(pubkey) {
       const urls = profileUrlsForPubkey(pubkey);
-      return urls[Math.floor(Math.random() * urls.length)];
+      return Math.random() < 0.8 ? urls[0] : urls[1];
     }
 
     function njumpProbeUrlForEvent(eventId) {
@@ -365,8 +360,8 @@
             about: metadata.about || '',
             picture: metadata.picture || '',
             website: metadata.website || '',
-            alternateSource: metadata.alternate_source || metadata.alternateSource || nostrProfileUrlForPubkey(event.pubkey),
-            profileUrl: metadata.profile_url || metadata.profileUrl || njumpProfileUrlForPubkey(event.pubkey),
+            alternateSource: metadata.alternate_source || metadata.alternateSource || njumpProfileUrlForPubkey(event.pubkey),
+            profileUrl: metadata.profile_url || metadata.profileUrl || nostrProfileUrlForPubkey(event.pubkey),
             quorumId: metadata.quorum_id || QUORUM_ID,
             quorumEventId: metadata.quorum_event_id || metadata.quorumId || QUORUM_ID,
           });
@@ -469,8 +464,8 @@
           about: `Member ${i + 1} of the nostr-dag quorum`,
           picture: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(name)}`,
           website: SITE_URL,
-          alternateSource: nostrProfileUrlForPubkey(pk),
-          profileUrl: njumpProfileUrlForPubkey(pk),
+          alternateSource: njumpProfileUrlForPubkey(pk),
+          profileUrl: nostrProfileUrlForPubkey(pk),
           quorumId: QUORUM_ID,
         });
         return {
@@ -508,8 +503,8 @@
         about: `${baseProfile.about || author.about} quorum_event_id: ${quorumEventId}.`,
         picture: baseProfile.picture || author.picture,
         website: baseProfile.website || author.website,
-        alternateSource: baseProfile.alternate_source || author.profile?.alternate_source || nostrProfileUrlForPubkey(author.pk),
-        profileUrl: baseProfile.profile_url || author.profile?.profile_url || njumpProfileUrlForPubkey(author.pk),
+        alternateSource: baseProfile.alternate_source || author.profile?.alternate_source || njumpProfileUrlForPubkey(author.pk),
+        profileUrl: baseProfile.profile_url || author.profile?.profile_url || nostrProfileUrlForPubkey(author.pk),
         quorumId: baseProfile.quorum_id || author.quorumId,
         quorumEventId,
       });
@@ -773,11 +768,8 @@
         const njumpLink = njump?.available
           ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
-        const altSourceLink = p.profile?.alternate_source
-          ? ` <a href="${p.profile.alternate_source}" target="_blank" rel="noreferrer noopener" title="Alternate profile source"><img class="site-ico" src="${nostrProfileIconUrl()}" alt="nostr.com" /></a>`
-          : '';
-        const profileUrl = p.profile?.profile_url || njumpProfileUrlForPubkey(p.pk);
-        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${profileUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in njump"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name}${altSourceLink})</span>${njumpLink}</li>`;
+        const profileUrl = p.profile?.profile_url || nostrProfileUrlForPubkey(p.pk);
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${profileUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name})</span>${njumpLink}</li>`;
       }).join('');
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
