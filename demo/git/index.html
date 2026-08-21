@@ -99,6 +99,7 @@
           <h3>${repo.name}</h3>
           <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${data.ref || 'n/a'}</span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${data.latest || 'n/a'}</span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${data.tags.length ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Files:</span></div>
@@ -137,7 +138,13 @@
     }
 
     async function readRepo(repo) {
-      const commits = await git.log({ fs, dir: repo.dir, depth: 10 });
+      const branches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
+      const ref = branches.includes('main')
+        ? 'main'
+        : branches.includes('master')
+          ? 'master'
+          : branches[0] || 'HEAD';
+      const commits = await git.log({ fs, dir: repo.dir, ref, depth: 10 });
       const latest = commits[0]?.commit?.message || 'n/a';
       const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
@@ -145,6 +152,7 @@
         latest,
         files: files.slice(0, 40),
         tags: tags.slice(0, 20),
+        ref,
       };
     }
 
