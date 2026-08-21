@@ -117,9 +117,13 @@
     }
 
     function repoCard(repo, data) {
+      const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
       return `
         <div class="repo">
-          <h3>${repo.name}</h3>
+          <h3 class="row" style="gap:8px;align-items:center;">
+            <img src="${iconUrl}" alt="" width="16" height="16" style="border-radius:3px;" />
+            <span>${repo.name}</span>
+          </h3>
           <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${data.ref || 'n/a'}</span></div>
