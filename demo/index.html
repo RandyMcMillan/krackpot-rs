@@ -1,351 +1,259 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Federated Chat Demo</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nostr-dag Demo</title>
   <script src="https://unpkg.com/nostr-tools@2.10.4/lib/nostr.bundle.js"></script>
   <style>
-    * { box-sizing: border-box; }
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      max-width: 800px;
-      margin: 0 auto;
-      padding: 20px;
-      background: #1a1a2e;
-      color: #eee;
-    }
-    h1 { color: #8b5cf6; margin-bottom: 5px; }
-    .subtitle { color: #888; margin-bottom: 20px; }
-    .config {
-      background: #16213e;
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    .config label { display: block; margin-bottom: 10px; }
-    .config input {
-      width: 100%;
-      padding: 8px;
-      border: 1px solid #333;
-      border-radius: 4px;
-      background: #0f0f23;
-      color: #eee;
-      margin-top: 5px;
-    }
-    .config button {
-      background: #8b5cf6;
-      color: white;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin-top: 10px;
-    }
-    .config button:hover { background: #7c3aed; }
-    .status {
-      padding: 10px;
-      border-radius: 4px;
-      margin-bottom: 20px;
-    }
-    .status.connected { background: #065f46; }
-    .status.disconnected { background: #7f1d1d; }
-    #messages {
-      background: #16213e;
-      border-radius: 8px;
-      padding: 15px;
-      min-height: 300px;
-      max-height: 500px;
-      overflow-y: auto;
-      margin-bottom: 20px;
-    }
-    .message {
-      padding: 10px;
-      margin-bottom: 10px;
-      border-radius: 6px;
-      transition: all 0.3s ease;
-    }
-    .message.pending {
-      background: #1e293b;
-      opacity: 0.6;
-      border-left: 3px solid #f59e0b;
-    }
-    .message.canonical {
-      background: #1e3a5f;
-      opacity: 1;
-      border-left: 3px solid #10b981;
-    }
-    .message .author {
-      font-size: 0.75rem;
-      color: #8b5cf6;
-      margin-bottom: 5px;
-    }
-    .message .content { font-size: 0.95rem; }
-    .message .meta {
-      font-size: 0.7rem;
-      color: #666;
-      margin-top: 5px;
-    }
-    .input-area {
-      display: flex;
-      gap: 10px;
-    }
-    .input-area input {
-      flex: 1;
-      padding: 12px;
-      border: 1px solid #333;
-      border-radius: 4px;
-      background: #0f0f23;
-      color: #eee;
-    }
-    .input-area button {
-      background: #8b5cf6;
-      color: white;
-      border: none;
-      padding: 12px 24px;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .legend {
-      display: flex;
-      gap: 20px;
-      margin-bottom: 10px;
-      font-size: 0.8rem;
-    }
-    .legend span { display: flex; align-items: center; gap: 5px; }
-    .legend .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-    }
-    .legend .dot.pending { background: #f59e0b; }
-    .legend .dot.canonical { background: #10b981; }
+    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; background:#0f172a; color:#e2e8f0; }
+    h1 { margin: 0 0 6px; color: #a78bfa; }
+    .muted { color:#94a3b8; }
+    .panel { background:#111827; border:1px solid #334155; border-radius:8px; padding:14px; margin:14px 0; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    input, select, button { background:#020617; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:8px; }
+    button { cursor:pointer; background:#4c1d95; border-color:#6d28d9; }
+    button:hover { background:#5b21b6; }
+    .status { padding:8px 10px; border-radius:6px; margin-top:10px; }
+    .ok { background:#065f46; }
+    .err { background:#7f1d1d; }
+    .grid { display:grid; grid-template-columns: 1fr 2fr; gap:14px; }
+    .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .canonical { background:#065f46; }
+    .pending { background:#78350f; }
+    .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
+    .small { font-size:12px; }
+    @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-  <h1>Federated Chat</h1>
-  <p class="subtitle">DAG-based consensus demo</p>
+  <h1>nostr-dag: Real DAG Demo</h1>
+  <div class="muted">This page runs the Rust DAG logic in WASM and lets you create Nostr events locally.</div>
 
-  <div class="config" id="configPanel">
-    <label>
-      Relay URL
-      <input type="text" id="relayUrl" value="ws://localhost:8080">
-    </label>
-    <label>
-      Federation Pubkeys (5 members)
-      <input type="text" id="federationPubkeys" value="f7514e8321b886099a4e51c80055b20f500c3fa2f413ec6d2cf124dffbcfb116,a8d28940780397138a55ead4cd262748cacdbec8e0635e347c08fa3733d6168b,667cb2016acf35ab4f9cc9c57868d00490498d7a91eb0ad72a64afe30326e8ba,b871279ede482b7a657965512fef25e6ebb11c8f6397aa8af38a6761a176ec6b,e3876c803509eb00fb83ac513050632980e8ec1e9f469148a0485adbf896483f" disabled style="background: #1a1a2e; color: #666;">
-    </label>
-    <label>
-      Your Private Key (hex or nsec, leave blank to generate)
-      <input type="text" id="privateKey" placeholder="optional">
-    </label>
-    <button onclick="connect()">Connect</button>
+  <div class="panel">
+    <div class="row">
+      <button id="resetBtn">Reset DAG</button>
+      <button id="seedBtn">Create Genesis (all participants)</button>
+      <button id="ackRoundBtn">Run Ack Round</button>
+      <span id="status" class="status">Loading WASM...</span>
+    </div>
+    <div class="small muted" style="margin-top:8px;">Tip: open this via HTTP (GitHub Pages or local server), not <span class="mono">file://</span>.</div>
   </div>
 
-  <div class="status disconnected" id="status">Disconnected</div>
+  <div class="grid">
+    <div class="panel">
+      <h3>New Event</h3>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Author</label>
+        <select id="author"></select>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Kind</label>
+        <select id="kind">
+          <option value="42">42 (message)</option>
+          <option value="21000">21000 (ack)</option>
+        </select>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Content</label>
+        <input id="content" placeholder="optional content" style="flex:1;" />
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Parents</label>
+        <select id="parentsMode">
+          <option value="tips">Current tips</option>
+          <option value="none">No parents (genesis)</option>
+          <option value="custom">Custom IDs</option>
+        </select>
+      </div>
+      <div class="row">
+        <input id="customParents" class="mono" style="flex:1;" placeholder="comma-separated event IDs" />
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="createBtn">Create Event</button>
+      </div>
+    </div>
 
-  <div class="legend">
-    <span><span class="dot pending"></span> Pending (not canonical)</span>
-    <span><span class="dot canonical"></span> Canonical (majority acked)</span>
+    <div class="panel">
+      <h3>State</h3>
+      <div id="summary" class="small muted"></div>
+      <div id="tips" class="small" style="margin:8px 0;"></div>
+      <div id="events"></div>
+    </div>
   </div>
 
-  <div id="messages"></div>
+  <script type="module">
+    import init, { WasmDag } from './pkg/nostr_dag.js';
 
-  <div class="input-area">
-    <input type="text" id="messageInput" placeholder="Type a message..." onkeypress="if(event.key==='Enter')sendMessage()">
-    <button onclick="sendMessage()">Send</button>
-  </div>
+    const FED_COUNT = 5;
+    let dag = null;
+    let participants = [];
+    const events = new Map();
 
-  <script>
-    const DAG_EVENT_KIND = 21000;
-    const CHANNEL_MESSAGE_KIND = 42;
-    const FEDERATION_PUBKEYS = [
-      'f7514e8321b886099a4e51c80055b20f500c3fa2f413ec6d2cf124dffbcfb116',
-      'a8d28940780397138a55ead4cd262748cacdbec8e0635e347c08fa3733d6168b',
-      '667cb2016acf35ab4f9cc9c57868d00490498d7a91eb0ad72a64afe30326e8ba',
-      'b871279ede482b7a657965512fef25e6ebb11c8f6397aa8af38a6761a176ec6b',
-      'e3876c803509eb00fb83ac513050632980e8ec1e9f469148a0485adbf896483f',
-    ];
+    const statusEl = document.getElementById('status');
+    const authorEl = document.getElementById('author');
+    const kindEl = document.getElementById('kind');
+    const contentEl = document.getElementById('content');
+    const parentsModeEl = document.getElementById('parentsMode');
+    const customParentsEl = document.getElementById('customParents');
 
-    let ws = null;
-    let keys = null;
-    let federationPubkeys = new Set(FEDERATION_PUBKEYS);
-    let threshold = Math.floor(FEDERATION_PUBKEYS.length / 2);
+    const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
-    const dag = {
-      events: new Map(),
-      seenBy: new Map(),
-      children: new Map(),
-    };
+    function setStatus(message, ok = true) {
+      statusEl.textContent = message;
+      statusEl.className = `status ${ok ? 'ok' : 'err'}`;
+    }
 
-    function parentsOf(event) {
-      return (event.tags || [])
-        .filter(t => t[0] === 'e')
-        .map(t => t[1]);
+    function initParticipants() {
+      participants = Array.from({ length: FED_COUNT }, (_, i) => {
+        const sk = NostrTools.generateSecretKey();
+        const pk = NostrTools.getPublicKey(sk);
+        return { name: `P${i + 1}`, sk, pk };
+      });
+
+      authorEl.innerHTML = participants
+        .map((p, i) => `<option value="${i}">${p.name} (${p.pk.slice(0, 12)}…)</option>`)
+        .join('');
+    }
+
+    function resetDag() {
+      initParticipants();
+      dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
+      events.clear();
+      render();
+      setStatus('WASM loaded. DAG reset with 5 participants.', true);
+    }
+
+    function currentTips() {
+      return JSON.parse(dag.tip_ids());
+    }
+
+    function canonicalSet() {
+      return new Set(JSON.parse(dag.canonical_ids()));
+    }
+
+    function resolveParents() {
+      const mode = parentsModeEl.value;
+      if (mode === 'none') return [];
+      if (mode === 'custom') {
+        return customParentsEl.value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      return currentTips();
+    }
+
+    function buildEvent(author, kind, content, parentIds) {
+      const tags = parentIds.map((id) => ['e', id]);
+      const event = {
+        kind,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content,
+        pubkey: author.pk,
+      };
+      return NostrTools.finalizeEvent(event, author.sk);
     }
 
     function insertEvent(event) {
-      const id = event.id;
-      if (dag.events.has(id)) return false;
-
-      dag.events.set(id, event);
-      dag.seenBy.set(id, new Set());
-
-      const parents = parentsOf(event);
-      for (const parentId of parents) {
-        if (!dag.children.has(parentId)) {
-          dag.children.set(parentId, new Set());
-        }
-        dag.children.get(parentId).add(id);
+      const result = JSON.parse(dag.insert(JSON.stringify(event)));
+      if (result.type === 'Duplicate') {
+        throw new Error('Duplicate event');
       }
-
-      const isFedMember = federationPubkeys.has(event.pubkey);
-      if (event.kind === DAG_EVENT_KIND && !isFedMember) {
-        console.log('Federation lookup failed!');
-        console.log('  Event pubkey:', JSON.stringify(event.pubkey));
-        console.log('  Federation pubkeys:', [...federationPubkeys].map(p => JSON.stringify(p)));
-      }
-      console.log('insertEvent:', {
-        id: id.slice(0, 8),
+      events.set(event.id, {
+        id: event.id,
         kind: event.kind,
-        pubkey: event.pubkey.slice(0, 8),
-        parents: parents.map(p => p.slice(0, 8)),
-        isFedMember,
-        federationSize: federationPubkeys.size
+        author: event.pubkey,
+        content: event.content,
+        created_at: event.created_at,
+        parents: event.tags.filter((t) => t[0] === 'e').map((t) => t[1]),
+        status: result.type,
       });
-
-      if (isFedMember) {
-        markSeenByAncestors(id, event.pubkey);
-      }
-
-      return true;
     }
 
-    function markSeenByAncestors(id, pubkey) {
-      const stack = [id];
-      while (stack.length > 0) {
-        const current = stack.pop();
-        const seenBy = dag.seenBy.get(current);
-        if (seenBy && !seenBy.has(pubkey)) {
-          seenBy.add(pubkey);
-          const event = dag.events.get(current);
-          if (event) {
-            stack.push(...parentsOf(event));
-          }
-        }
+    function createEvent() {
+      try {
+        const author = participants[Number(authorEl.value)];
+        const kind = Number(kindEl.value);
+        const content = contentEl.value.trim();
+        const parents = resolveParents();
+        const event = buildEvent(author, kind, content, parents);
+        insertEvent(event);
+        contentEl.value = '';
+        render();
+      } catch (e) {
+        setStatus(`Create failed: ${e.message}`, false);
       }
     }
 
-    function isCanonical(id) {
-      const seenBy = dag.seenBy.get(id);
-      return seenBy && seenBy.size > threshold;
-    }
-
-    function connect() {
-      const relayUrl = document.getElementById('relayUrl').value;
-      const privKeyStr = document.getElementById('privateKey').value.trim();
-
-      if (privKeyStr) {
-        if (privKeyStr.startsWith('nsec')) {
-          keys = NostrTools.nip19.decode(privKeyStr).data;
-        } else {
-          keys = privKeyStr;
+    function seedGenesis() {
+      try {
+        for (const author of participants) {
+          const event = buildEvent(author, 21000, 'genesis', []);
+          insertEvent(event);
         }
-      } else {
-        keys = NostrTools.generateSecretKey();
+        render();
+      } catch (e) {
+        setStatus(`Seed failed: ${e.message}`, false);
       }
-
-      const pubkey = NostrTools.getPublicKey(keys);
-      console.log('Your pubkey:', pubkey);
-
-      ws = new WebSocket(relayUrl);
-
-      ws.onopen = () => {
-        document.getElementById('status').textContent = `Connected as ${pubkey.slice(0, 8)}...`;
-        document.getElementById('status').className = 'status connected';
-        document.getElementById('configPanel').style.display = 'none';
-
-        const subId = 'sub1';
-        const filter = { kinds: [CHANNEL_MESSAGE_KIND, DAG_EVENT_KIND], limit: 500 };
-        ws.send(JSON.stringify(['REQ', subId, filter]));
-      };
-
-      ws.onclose = () => {
-        document.getElementById('status').textContent = 'Disconnected';
-        document.getElementById('status').className = 'status disconnected';
-      };
-
-      ws.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
-        if (data[0] === 'EVENT') {
-          const event = data[2];
-          if (insertEvent(event)) {
-            renderMessages();
-          } else {
-            if (dag.events.has(event.id)) {
-              renderMessages();
-            }
-          }
-        }
-      };
     }
 
-    function renderMessages() {
-      const container = document.getElementById('messages');
-      const chatMessages = [...dag.events.values()]
-        .filter(e => e.kind === CHANNEL_MESSAGE_KIND)
-        .sort((a, b) => a.created_at - b.created_at);
+    function runAckRound() {
+      try {
+        const tips = currentTips();
+        for (const author of participants) {
+          const event = buildEvent(author, 21000, '', tips);
+          insertEvent(event);
+        }
+        render();
+      } catch (e) {
+        setStatus(`Ack round failed: ${e.message}`, false);
+      }
+    }
 
-      chatMessages.forEach(event => {
-        const seenBy = dag.seenBy.get(event.id) || new Set();
-        console.log('Message', event.id.slice(0, 8), 'seenBy:', [...seenBy].map(p => p.slice(0, 8)), 'threshold:', threshold);
-      });
+    function render() {
+      const canonical = canonicalSet();
+      const tips = currentTips();
+      const list = [...events.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
-      container.innerHTML = chatMessages.map(event => {
-        const canonical = isCanonical(event.id);
-        const seenBy = dag.seenBy.get(event.id) || new Set();
+      document.getElementById('summary').textContent =
+        `${list.length} events • ${canonical.size} canonical • threshold > ${Math.floor(participants.length / 2)} of ${participants.length}`;
+
+      document.getElementById('tips').innerHTML =
+        `<b>Tips:</b> ${tips.length ? tips.map((t) => `<span class="mono">${short(t)}</span>`).join(', ') : 'none'}`;
+
+      document.getElementById('events').innerHTML = list.map((e) => {
+        const who = participants.find((p) => p.pk === e.author)?.name || e.author.slice(0, 8);
+        const stateClass = canonical.has(e.id) ? 'canonical' : 'pending';
+        const stateText = canonical.has(e.id) ? 'canonical' : 'pending';
         return `
-          <div class="message ${canonical ? 'canonical' : 'pending'}">
-            <div class="author">${event.pubkey.slice(0, 12)}...</div>
-            <div class="content">${escapeHtml(event.content)}</div>
-            <div class="meta">
-              ${canonical ? '✓ Canonical' : '⏳ Pending'}
-              (${seenBy.size}/${federationPubkeys.size} acks)
+          <div class="event">
+            <div class="row" style="justify-content:space-between;">
+              <div><b>${who}</b> <span class="small muted">kind ${e.kind}</span></div>
+              <span class="chip ${stateClass}">${stateText}</span>
             </div>
+            <div class="mono">id: ${e.id}</div>
+            <div class="small">parents: ${e.parents.length ? e.parents.map(short).join(', ') : 'none'}</div>
+            <div class="small">content: ${e.content ? e.content.replace(/[<>&]/g, '') : '""'}</div>
           </div>
         `;
       }).join('');
 
-      container.scrollTop = container.scrollHeight;
+      setStatus('DAG updated.', true);
     }
 
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
-    }
+    document.getElementById('createBtn').addEventListener('click', createEvent);
+    document.getElementById('seedBtn').addEventListener('click', seedGenesis);
+    document.getElementById('ackRoundBtn').addEventListener('click', runAckRound);
+    document.getElementById('resetBtn').addEventListener('click', resetDag);
 
-    async function sendMessage() {
-      const input = document.getElementById('messageInput');
-      const content = input.value.trim();
-      if (!content || !ws || ws.readyState !== WebSocket.OPEN) return;
-
-      const event = {
-        kind: CHANNEL_MESSAGE_KIND,
-        created_at: Math.floor(Date.now() / 1000),
-        tags: [],
-        content: content,
-        pubkey: NostrTools.getPublicKey(keys),
-      };
-
-      event.id = NostrTools.getEventHash(event);
-      event.sig = NostrTools.finalizeEvent(event, keys).sig;
-
-      ws.send(JSON.stringify(['EVENT', event]));
-      input.value = '';
-
-      insertEvent(event);
-      renderMessages();
+    try {
+      await init();
+      resetDag();
+    } catch (e) {
+      setStatus(`WASM load failed: ${e.message}`, false);
     }
   </script>
 </body>
