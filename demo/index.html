@@ -55,6 +55,8 @@
       <div class="row" style="margin-bottom:8px;">
         <label>Kind</label>
         <select id="kind">
+          <option value="0">0 (metadata)</option>
+          <option value="1">1 (text note)</option>
           <option value="42">42 (message)</option>
           <option value="21000">21000 (ack)</option>
         </select>
@@ -96,6 +98,9 @@
       'wss://relay.damus.io',
       'wss://nos.lol',
     ];
+    const SITE_URL = 'https://randymcmillan.github.io/nostr-dag';
+    const PARTICIPANT_NAMES = ['alice', 'bob', 'carol', 'dave', 'eve'];
+    const PARTICIPANT_DISPLAY_NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'];
 
     const FED_COUNT = 5;
     let dag = null;
@@ -122,7 +127,17 @@
       participants = Array.from({ length: FED_COUNT }, (_, i) => {
         const sk = generateSecretKey();
         const pk = getPublicKey(sk);
-        return { name: `P${i + 1}`, sk, pk };
+        const name = PARTICIPANT_NAMES[i] || `participant${i + 1}`;
+        const displayName = PARTICIPANT_DISPLAY_NAMES[i] || `Participant ${i + 1}`;
+        return {
+          name,
+          displayName,
+          about: `Member ${i + 1} of the nostr-dag quorum.`,
+          picture: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(name)}`,
+          website: SITE_URL,
+          sk,
+          pk,
+        };
       });
 
       authorEl.innerHTML = participants
@@ -130,12 +145,31 @@
         .join('');
     }
 
-    function resetDag() {
+    async function resetDag() {
       initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
       events.clear();
       render();
       setStatus('WASM loaded. DAG reset with 5 participants.', true);
+      await publishProfiles();
+    }
+
+    function buildMetadataEvent(author) {
+      const profile = {
+        name: author.name,
+        display_name: author.displayName,
+        about: author.about,
+        picture: author.picture,
+        website: author.website,
+      };
+
+      return finalizeEvent({
+        kind: 0,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: JSON.stringify(profile),
+        pubkey: author.pk,
+      }, author.sk);
     }
 
     function currentTips() {
@@ -195,13 +229,28 @@
       }
     }
 
+    async function publishEvents(eventsToPublish, successLabel) {
+      const results = await Promise.allSettled(
+        eventsToPublish.map((event) => Promise.any(pool.publish(RELAYS, event)))
+      );
+      const published = results.filter((result) => result.status === 'fulfilled').length;
+
+      if (published > 0) {
+        setStatus(`${successLabel} published to public relays (${published}/${eventsToPublish.length}).`, true);
+      } else {
+        setStatus(`Local only: publish failed for ${successLabel}`, false);
+      }
+    }
+
     async function createEvent() {
       try {
         const author = participants[Number(authorEl.value)];
         const kind = Number(kindEl.value);
         const content = contentEl.value.trim();
         const parents = resolveParents();
-        const event = buildEvent(author, kind, content, parents);
+        const event = kind === 0 && !content
+          ? buildMetadataEvent(author)
+          : buildEvent(author, kind, content, parents);
         insertEvent(event);
         contentEl.value = '';
         render();
@@ -220,9 +269,7 @@
           seeded.push(event);
         }
         render();
-        for (const event of seeded) {
-          await publishEvent(event);
-        }
+        await publishEvents(seeded, 'Genesis quorum');
       } catch (e) {
         setStatus(`Seed failed: ${e.message}`, false);
       }
@@ -238,12 +285,19 @@
           acks.push(event);
         }
         render();
-        for (const event of acks) {
-          await publishEvent(event);
-        }
+        await publishEvents(acks, 'Ack round');
       } catch (e) {
         setStatus(`Ack round failed: ${e.message}`, false);
       }
+    }
+
+    async function publishProfiles() {
+      const profileEvents = participants.map((author) => buildMetadataEvent(author));
+      for (const event of profileEvents) {
+        insertEvent(event);
+      }
+      render();
+      await publishEvents(profileEvents, 'Quorum metadata');
     }
 
     function render() {
@@ -281,13 +335,13 @@
       e.preventDefault();
       await createEvent();
     });
-    document.getElementById('seedBtn').addEventListener('click', seedGenesis);
-    document.getElementById('ackRoundBtn').addEventListener('click', runAckRound);
-    document.getElementById('resetBtn').addEventListener('click', resetDag);
+    document.getElementById('seedBtn').addEventListener('click', () => { void seedGenesis(); });
+    document.getElementById('ackRoundBtn').addEventListener('click', () => { void runAckRound(); });
+    document.getElementById('resetBtn').addEventListener('click', () => { void resetDag(); });
 
     try {
       await init();
-      resetDag();
+      await resetDag();
     } catch (e) {
       setStatus(`WASM load failed: ${e.message}`, false);
     }
