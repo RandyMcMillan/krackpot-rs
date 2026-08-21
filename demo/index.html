@@ -92,7 +92,7 @@
 
   <script type="module">
     import init, { WasmDag } from './pkg/nostr_dag.js';
-    import { finalizeEvent, generateSecretKey, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
+    import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
     import { neventEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
     import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
 
@@ -135,6 +135,12 @@
     const stateListEl = document.getElementById('stateList');
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
+
+    async function sha256Bytes(value) {
+      const encoded = new TextEncoder().encode(value);
+      const digest = await crypto.subtle.digest('SHA-256', encoded);
+      return new Uint8Array(digest);
+    }
 
     function njumpUrlForEvent(eventId) {
       return `https://njump.me/${neventEncode({ id: eventId })}`;
@@ -353,11 +359,11 @@
       );
     }
 
-    function initParticipants() {
-      participants = Array.from({ length: FED_COUNT }, (_, i) => {
-        const sk = generateSecretKey();
-        const pk = getPublicKey(sk);
+    async function initParticipants() {
+      participants = await Promise.all(Array.from({ length: FED_COUNT }, async (_, i) => {
         const name = PARTICIPANT_NAMES[i] || `participant${i + 1}`;
+        const sk = await sha256Bytes(name);
+        const pk = getPublicKey(sk);
         const displayName = PARTICIPANT_DISPLAY_NAMES[i] || `Participant ${i + 1}`;
         return {
           name,
@@ -369,7 +375,7 @@
           sk,
           pk,
         };
-      });
+      }));
       discoveredParticipants.clear();
 
       authorEl.innerHTML = participants
@@ -378,13 +384,13 @@
     }
 
     async function resetDag() {
-      initParticipants();
+      await initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
       events.clear();
       njumpAvailability.clear();
       render();
       setStatus('WASM loaded. DAG reset with 5 participants.', true);
-      await publishProfiles();
+      void publishProfiles();
     }
 
     function buildMetadataEvent(author, quorumEventId = author.quorumId) {
@@ -474,10 +480,12 @@
     }
 
     function queueBroadcast(eventsToPublish, successLabel) {
-      broadcastQueue.push({ eventsToPublish, successLabel });
-      if (!broadcastQueueRunning) {
-        void drainBroadcastQueue();
-      }
+      return new Promise((resolve) => {
+        broadcastQueue.push({ eventsToPublish, successLabel, resolve });
+        if (!broadcastQueueRunning) {
+          void drainBroadcastQueue();
+        }
+      });
     }
 
     async function drainBroadcastQueue() {
@@ -486,7 +494,7 @@
 
       try {
         while (broadcastQueue.length) {
-          const { eventsToPublish, successLabel } = broadcastQueue.shift();
+          const { eventsToPublish, successLabel, resolve } = broadcastQueue.shift();
           let published = 0;
 
           for (const event of eventsToPublish) {
@@ -512,6 +520,7 @@
               30000
             );
           }
+          resolve();
         }
       } finally {
         broadcastQueueRunning = false;
@@ -519,11 +528,11 @@
     }
 
     async function publishEvent(event) {
-      queueBroadcast([event], `Event ${event.kind}`);
+      return queueBroadcast([event], `Event ${event.kind}`);
     }
 
     async function publishEvents(eventsToPublish, successLabel) {
-      queueBroadcast(eventsToPublish, successLabel);
+      return queueBroadcast(eventsToPublish, successLabel);
     }
 
     function createAckRoundEvents() {
@@ -535,6 +544,16 @@
         acks.push(event);
       }
       return acks;
+    }
+
+    function createGenesisEvents() {
+      const seeded = [];
+      for (const author of participants) {
+        const event = buildEvent(author, 21000, 'genesis', []);
+        insertEvent(event);
+        seeded.push(event);
+      }
+      return seeded;
     }
 
     async function createEvent() {
@@ -557,12 +576,7 @@
 
     async function seedGenesis() {
       try {
-        const seeded = [];
-        for (const author of participants) {
-          const event = buildEvent(author, 21000, 'genesis', []);
-          insertEvent(event);
-          seeded.push(event);
-        }
+        const seeded = createGenesisEvents();
         render();
         await publishEvents(seeded, 'Genesis quorum');
       } catch (e) {
@@ -594,19 +608,22 @@
     }
 
     async function publishProfiles() {
+      const seeded = createGenesisEvents();
       const participantPubkeys = participants.map((participant) => participant.pk);
       const quorumEvent = buildQuorumGroupEvent(participants[participants.length - 1], participantPubkeys);
       insertEvent(quorumEvent);
       render();
-      await publishEvents([quorumEvent], 'Quorum note');
+      void publishEvents(seeded, 'Genesis quorum');
+      render();
+      void publishEvents([quorumEvent], 'Quorum note');
 
       const profileEvents = participants.map((author) => buildMetadataEvent(author, quorumEvent.id));
       for (const event of profileEvents) {
         insertEvent(event);
       }
       render();
-      await publishEvents(profileEvents, 'Quorum metadata');
-      await autoAckUntilCanonical(quorumEvent.id);
+      void publishEvents(profileEvents, 'Quorum metadata');
+      void autoAckUntilCanonical(quorumEvent.id);
     }
 
     function render() {
