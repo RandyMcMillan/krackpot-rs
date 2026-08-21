@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>nostr-dag Demo</title>
-  <script src="https://unpkg.com/nostr-tools@2.10.4/lib/nostr.bundle.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px; background:#0f172a; color:#e2e8f0; }
     h1 { margin: 0 0 6px; color: #a78bfa; }
@@ -34,6 +33,7 @@
     </a>
     </h1>
   <div class="muted">This page runs the Rust DAG logic in WASM and lets you create Nostr events locally.</div>
+  <div class="small muted" style="margin-top:6px;">Browser publisher sends federation ack events to public relays too.</div>
 
   <div class="panel">
     <div class="row">
@@ -89,11 +89,19 @@
 
   <script type="module">
     import init, { WasmDag } from './pkg/nostr_dag.js';
+    import { finalizeEvent, generateSecretKey, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
+    import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
+
+    const RELAYS = [
+      'wss://relay.damus.io',
+      'wss://nos.lol',
+    ];
 
     const FED_COUNT = 5;
     let dag = null;
     let participants = [];
     const events = new Map();
+    const pool = new SimplePool();
 
     const statusEl = document.getElementById('status');
     const authorEl = document.getElementById('author');
@@ -111,8 +119,8 @@
 
     function initParticipants() {
       participants = Array.from({ length: FED_COUNT }, (_, i) => {
-        const sk = NostrTools.generateSecretKey();
-        const pk = NostrTools.getPublicKey(sk);
+        const sk = generateSecretKey();
+        const pk = getPublicKey(sk);
         return { name: `P${i + 1}`, sk, pk };
       });
 
@@ -158,7 +166,7 @@
         content,
         pubkey: author.pk,
       };
-      return NostrTools.finalizeEvent(event, author.sk);
+      return finalizeEvent(event, author.sk);
     }
 
     function insertEvent(event) {
@@ -177,7 +185,16 @@
       });
     }
 
-    function createEvent() {
+    async function publishEvent(event) {
+      try {
+        await Promise.any(pool.publish(RELAYS, event));
+        setStatus(`Published ${event.kind} to ${RELAYS.length} public relays.`, true);
+      } catch (e) {
+        setStatus(`Local only: publish failed (${e.message})`, false);
+      }
+    }
+
+    async function createEvent() {
       try {
         const author = participants[Number(authorEl.value)];
         const kind = Number(kindEl.value);
@@ -187,31 +204,42 @@
         insertEvent(event);
         contentEl.value = '';
         render();
+        await publishEvent(event);
       } catch (e) {
         setStatus(`Create failed: ${e.message}`, false);
       }
     }
 
-    function seedGenesis() {
+    async function seedGenesis() {
       try {
+        const seeded = [];
         for (const author of participants) {
           const event = buildEvent(author, 21000, 'genesis', []);
           insertEvent(event);
+          seeded.push(event);
         }
         render();
+        for (const event of seeded) {
+          await publishEvent(event);
+        }
       } catch (e) {
         setStatus(`Seed failed: ${e.message}`, false);
       }
     }
 
-    function runAckRound() {
+    async function runAckRound() {
       try {
         const tips = currentTips();
+        const acks = [];
         for (const author of participants) {
           const event = buildEvent(author, 21000, '', tips);
           insertEvent(event);
+          acks.push(event);
         }
         render();
+        for (const event of acks) {
+          await publishEvent(event);
+        }
       } catch (e) {
         setStatus(`Ack round failed: ${e.message}`, false);
       }
