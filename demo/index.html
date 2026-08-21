@@ -94,7 +94,7 @@
   <script type="module">
     import init, { WasmDag } from './pkg/nostr_dag.js';
     import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
-    import { neventEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
+    import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
     import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
 
     const RELAYS = [
@@ -143,8 +143,32 @@
       return new Uint8Array(digest);
     }
 
+    function createParticipantProfile({
+      name,
+      displayName,
+      about,
+      picture,
+      website,
+      quorumId,
+      quorumEventId = quorumId,
+    }) {
+      return {
+        name,
+        display_name: displayName,
+        about: `${about} quorum_event_id: ${quorumEventId}.`,
+        picture,
+        website,
+        quorum_id: quorumId,
+        quorum_event_id: quorumEventId,
+      };
+    }
+
     function njumpUrlForEvent(eventId) {
       return `https://njump.me/${neventEncode({ id: eventId })}`;
+    }
+
+    function njumpProfileUrlForPubkey(pubkey) {
+      return `https://njump.me/${npubEncode(pubkey)}`;
     }
 
     function njumpProbeUrlForEvent(eventId) {
@@ -217,6 +241,7 @@
       discoveredParticipants.set(participant.pk, {
         ...existing,
         ...participant,
+        profile: participant.profile || existing.profile || null,
         pk: participant.pk,
       });
     }
@@ -276,14 +301,24 @@
       if (event.kind === 0) {
         try {
           const metadata = JSON.parse(event.content || '{}');
+          const profile = createParticipantProfile({
+            name: metadata.name || event.pubkey.slice(0, 8),
+            displayName: metadata.display_name || metadata.displayName || metadata.name || event.pubkey.slice(0, 8),
+            about: metadata.about || '',
+            picture: metadata.picture || '',
+            website: metadata.website || '',
+            quorumId: metadata.quorum_id || QUORUM_ID,
+            quorumEventId: metadata.quorum_event_id || metadata.quorumId || QUORUM_ID,
+          });
           registerParticipant({
             pk: event.pubkey,
             eventId: event.id,
-            name: metadata.name,
-            displayName: metadata.display_name || metadata.displayName,
-            about: metadata.about,
-            picture: metadata.picture,
-            website: metadata.website,
+            name: profile.name,
+            displayName: profile.display_name,
+            about: profile.about,
+            picture: profile.picture,
+            website: profile.website,
+            profile,
           });
           probeNjump(event.id);
           for (const relay of collectRelayUrls(metadata)) {
@@ -366,15 +401,22 @@
         const sk = await sha256Bytes(name);
         const pk = getPublicKey(sk);
         const displayName = PARTICIPANT_DISPLAY_NAMES[i] || `Participant ${i + 1}`;
-        return {
+        const profile = createParticipantProfile({
           name,
           displayName,
-          about: `Member ${i + 1} of the nostr-dag quorum (quorum_id: ${QUORUM_ID}).`,
+          about: `Member ${i + 1} of the nostr-dag quorum`,
           picture: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(name)}`,
           website: SITE_URL,
           quorumId: QUORUM_ID,
+        });
+        return {
+          name,
+          displayName,
+          profile,
           sk,
           pk,
+          quorumId: QUORUM_ID,
+          picture: profile.picture,
         };
       }));
       discoveredParticipants.clear();
@@ -395,15 +437,15 @@
     }
 
     function buildMetadataEvent(author, quorumEventId = author.quorumId) {
-      const profile = {
-        name: author.name,
-        display_name: author.displayName,
-        about: `${author.about} quorum_event_id: ${quorumEventId}.`,
-        picture: author.picture,
-        website: author.website,
-        quorum_id: author.quorumId,
-        quorum_event_id: quorumEventId,
-      };
+      const profile = createParticipantProfile({
+        name: author.profile?.name || author.name,
+        displayName: author.profile?.display_name || author.displayName,
+        about: author.profile?.about || `Member ${author.name} of the nostr-dag quorum`,
+        picture: author.profile?.picture || author.picture,
+        website: author.profile?.website || author.website,
+        quorumId: author.profile?.quorum_id || author.quorumId,
+        quorumEventId,
+      });
 
       return finalizeEvent({
         kind: 0,
@@ -643,7 +685,7 @@
         const njumpLink = njump?.available
           ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
-        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<img class="avatar" src="${p.picture}" alt="${p.name} avatar" />${p.name})</span>${njumpLink}</li>`;
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${njumpProfileUrlForPubkey(p.pk)}" target="_blank" rel="noreferrer noopener" title="Open profile in njump"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name})</span>${njumpLink}</li>`;
       }).join('');
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
