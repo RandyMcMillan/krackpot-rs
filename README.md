@@ -23,11 +23,13 @@ A proof-of-concept showing how a federation of Nostr keypairs can achieve consen
 just build
 just test
 just site
+just server
 
 # Or use Make
 make build
 make test
 make site
+make server
 
 # Start relay + 5 federation daemons
 just demo

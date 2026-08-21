@@ -12,8 +12,11 @@ test:
 build-relay:
     CARGO_TARGET_DIR=target cargo build --release --bin relay --bin federation --features relay
 
+build-server:
+    CARGO_TARGET_DIR=target cargo build --bin nostr-dag-server --features native
+
 wasm:
-    CARGO_TARGET_DIR=target wasm-pack build --target web --release --out-dir site/pkg -- --no-default-features --features wasm
+    LLVM_PATH=$(brew --prefix llvm) && AR="$LLVM_PATH/bin/llvm-ar" CC="$LLVM_PATH/bin/clang" CARGO_TARGET_DIR=target wasm-pack build --target web --release --out-dir site/pkg -- --no-default-features --features wasm
 
 site: wasm
     mkdir -p site
@@ -21,6 +24,9 @@ site: wasm
 
 demo:
     ./demo/run.sh
+
+server: build-server site
+    CARGO_TARGET_DIR=target cargo run --bin nostr-dag-server --features native
 
 clean:
     cargo clean

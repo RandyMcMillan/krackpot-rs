@@ -40,6 +40,11 @@ name = "relay"
 path = "src/bin/relay.rs"
 required-features = ["relay"]
 
+[[bin]]
+name = "nostr-dag-server"
+path = "src/bin/nostr-dag-server.rs"
+required-features = ["native"]
+
 [features]
 default = []
 native = ["dep:tokio", "dep:tracing-subscriber", "dep:nostr-relay-pool"]
