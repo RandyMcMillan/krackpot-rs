@@ -51,7 +51,9 @@
     .repo-title a { color: inherit; text-decoration: none; }
     .repo-icon { width:16px; height:16px; border-radius:3px; flex:0 0 auto; }
     .repo-footer { display:flex; justify-content:flex-end; margin-top:12px; padding-top:10px; border-top:1px solid var(--border); }
+    .repo-actions { display:flex; gap:8px; align-items:center; }
     .repo-open { display:inline-flex; }
+    .repo-refresh { display:inline-flex; }
     .status { padding:8px 10px; border-radius:6px; background:var(--status); border:1px solid var(--border); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     ul { padding-left:18px; }
@@ -208,7 +210,10 @@
             ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
           </ul>
           <div class="repo-footer">
-            <a class="button repo-open" href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}" target="_blank" rel="noreferrer noopener">Open full viewer</a>
+            <div class="repo-actions">
+              <button class="repo-refresh" type="button" data-refresh-repo="${repo.name}">Refresh</button>
+              <a class="button repo-open" href="${repoHref(repo, data.ref === 'HEAD' ? null : data.ref)}" target="_blank" rel="noreferrer noopener">Open full viewer</a>
+            </div>
           </div>
         </div>
       `;
@@ -324,6 +329,11 @@
     function renderRepos(results = null) {
       const data = results || repos.map(() => ({ latest: 'n/a', files: [], tags: [] }));
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
+      reposEl.querySelectorAll('[data-refresh-repo]').forEach((button) => {
+        button.addEventListener('click', () => {
+          void refreshOneRepo(button.getAttribute('data-refresh-repo'));
+        });
+      });
     }
 
     function renderDetail(results = null) {
@@ -380,6 +390,39 @@
       } catch (e) {
         setStatus(`unavailable: ${e.message}`);
         console.warn('git viewer failed:', e);
+      }
+    }
+
+    async function refreshOneRepo(repoName) {
+      const repo = repos.find((entry) => entry.name === repoName);
+      if (!repo) {
+        return;
+      }
+      try {
+        setRepoStatus(repo.name, 'refreshing...');
+        await ensureRepo(repo);
+        const data = await readRepo(repo, repo.name === selectedRepoName ? 20 : 1, repo.name === selectedRepoName ? (selectedBranchName || null) : null, repo.name === selectedRepoName ? 200 : 40);
+        const current = {};
+        repos.forEach((entry) => {
+          current[entry.name] = {
+            latest: 'n/a',
+            files: [],
+            tags: [],
+          };
+        });
+        current[repo.name] = data;
+        renderRepos(repos.map((entry) => current[entry.name]));
+        if (selectedRepoName) {
+          const allResults = {};
+          repos.forEach((entry, index) => {
+            allResults[entry.name] = current[entry.name];
+          });
+          renderDetail(allResults);
+        }
+        setStatus('ready');
+      } catch (e) {
+        setRepoStatus(repo.name, `refresh failed: ${e.message}`);
+        console.warn('repo refresh failed:', repo.name, e);
       }
     }
 
