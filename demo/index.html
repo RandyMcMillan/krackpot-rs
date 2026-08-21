@@ -446,6 +446,12 @@
         || participantLabel(pubkey);
     }
 
+    function profileEvents(pubkey) {
+      return [...events.values()]
+        .filter((event) => event.author === pubkey)
+        .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+    }
+
     function openProfileModal(pubkey) {
       const participant = participants.find((p) => p.pk === pubkey) || {};
       const profile = participantProfile(pubkey) || participant.profile || {};
@@ -453,6 +459,7 @@
       const picture = profile.picture || participant.picture || '';
       const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(pubkey);
       const alternateSource = profile.alternate_source || njumpProfileUrlForPubkey(pubkey);
+      const eventsForProfile = profileEvents(pubkey);
       profileModalAvatarEl.src = picture;
       profileModalAvatarEl.alt = `${name} avatar`;
       profileModalTitleEl.textContent = name;
@@ -461,8 +468,12 @@
         <div class="small muted" style="margin-bottom:8px;">${profile.about || participant.about || ''}</div>
         <div class="small" style="margin-bottom:8px;"><span class="muted">Profile:</span> <a href="${profileUrl}" target="_blank" rel="noreferrer noopener">${profileUrl}</a></div>
         <div class="small" style="margin-bottom:8px;"><span class="muted">Fallback:</span> <a href="${alternateSource}" target="_blank" rel="noreferrer noopener">${alternateSource}</a></div>
-        <div class="small"><span class="muted">Quorum:</span> ${profile.quorum_id || participant.quorumId || QUORUM_ID}</div>
-        <div class="small"><span class="muted">Event:</span> ${profile.quorum_event_id || QUORUM_ID}</div>
+        <div class="small"><span class="muted">Events:</span></div>
+        <ul class="small" style="margin:6px 0 0 18px; padding:0; max-height:240px; overflow:auto;">
+          ${eventsForProfile.length
+            ? eventsForProfile.map((event) => `<li style="word-break:break-all;"><span class="mono">${event.id}</span> <span class="muted">kind ${event.kind}</span> <span class="muted">${new Date(event.created_at * 1000).toLocaleString()}</span></li>`).join('')
+            : '<li>none</li>'}
+        </ul>
       `;
       profileModalBackdropEl.classList.add('open');
       profileModalBackdropEl.setAttribute('aria-hidden', 'false');
