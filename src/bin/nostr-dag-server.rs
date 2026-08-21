@@ -99,7 +99,7 @@ async fn handle_connection(mut stream: TcpStream, site_dir: &str) -> io::Result<
 }
 
 async fn route_path(site_dir: &str, path: &str) -> Result<(Vec<u8>, &'static str), RouteError> {
-    let normalized = normalize_path(path)?;
+    let normalized = normalize_path(strip_query(path))?;
     let file_path = if normalized.is_empty() {
         PathBuf::from(site_dir).join("index.html")
     } else {
@@ -125,6 +125,10 @@ async fn route_path(site_dir: &str, path: &str) -> Result<(Vec<u8>, &'static str
     })?;
 
     Ok((body, content_type))
+}
+
+fn strip_query(path: &str) -> &str {
+    path.split_once(['?', '#']).map(|(head, _)| head).unwrap_or(path)
 }
 
 fn normalize_path(path: &str) -> Result<PathBuf, RouteError> {
