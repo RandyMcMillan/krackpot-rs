@@ -166,6 +166,7 @@
     let broadcastQueueRunning = false;
     let relayDiscoveryStarted = false;
     let libp2pPeerId = 'starting...';
+    let libp2pModuleCounts = { loaded: 0, failed: 0, total: 0 };
 
     const statusEl = document.getElementById('status');
     const authorEl = document.getElementById('author');
@@ -331,10 +332,22 @@
       ackRoundBtnEl.disabled = !enabled;
     }
 
+    function updateLibp2pFooter() {
+      if (!libp2pFooterStatusEl) return;
+      const { loaded, failed, total } = libp2pModuleCounts;
+      const moduleText = total ? `modules ${loaded}/${total}${failed ? ` (${failed} failed)` : ''}` : 'modules loading...';
+      libp2pFooterStatusEl.textContent = `libp2p: ${libp2pPeerId} | ${moduleText}`;
+    }
+
     function setLibp2pStatus(text) {
       libp2pPeerId = text;
-      if (libp2pFooterStatusEl) libp2pFooterStatusEl.textContent = `libp2p: ${text}`;
+      updateLibp2pFooter();
       render();
+    }
+
+    function setLibp2pModuleCounts(counts) {
+      libp2pModuleCounts = counts;
+      updateLibp2pFooter();
     }
 
     async function initLibp2pNode() {
@@ -1088,6 +1101,7 @@
     document.getElementById('ackRoundBtn').addEventListener('click', () => { void runAckRound(); });
     document.getElementById('resetBtn').addEventListener('click', () => { void resetDag(); });
     setControlsEnabled(true);
+    updateLibp2pFooter();
 
     try {
       setControlsEnabled(true);
