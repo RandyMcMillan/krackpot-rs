@@ -43,8 +43,10 @@ Click "Connect", then send messages. Watch them go from pending (gray) to canoni
 ## Project structure
 
 - `src/dag.rs` - Core DAG with pending event buffering
-- `src/bin/federation.rs` - Federation daemon
-- `src/bin/relay.rs` - Local relay for demo
+- `src/bin/federation.rs` - Runs one federation daemon that watches the relay and publishes acks
+- `src/bin/relay.rs` - Starts the local Nostr relay for the demo
+- `src/bin/keygen.rs` - Prints demo federation keys and startup commands
+- `src/bin/nostr-dag-server.rs` - Serves the built site locally from `site/`
 - `demo/index.html` - Browser frontend
 - `demo/run.sh` - Demo launcher script
 

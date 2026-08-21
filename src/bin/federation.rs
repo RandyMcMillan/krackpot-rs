@@ -1,3 +1,8 @@
+//! Run one federation daemon that watches relay events and publishes acks.
+//!
+//! Each daemon subscribes to channel messages, tracks DAG state, and emits
+//! acknowledgment events that help messages become canonical.
+
 use std::env;
 use std::sync::Arc;
 use std::time::Duration;

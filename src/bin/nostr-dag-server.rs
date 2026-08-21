@@ -1,3 +1,9 @@
+//! Serve the built demo site locally from `site/`.
+//!
+//! This is a small static file server for local preview. It expects `site/`
+//! to contain the WASM build output and `index.html`, and it prints
+//! `SERVER_URL=...` on startup.
+
 use std::env;
 use std::io;
 use std::path::{Component, Path, PathBuf};

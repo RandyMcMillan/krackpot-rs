@@ -1,3 +1,8 @@
+//! Print demo federation keys for local development.
+//!
+//! This helper generates a small participant set, prints secret/public keys,
+//! and shows the `cargo run --bin federation` commands for each daemon.
+
 use nostr::Keys;
 
 fn main() {

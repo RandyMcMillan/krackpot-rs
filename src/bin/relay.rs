@@ -1,3 +1,8 @@
+//! Start the local Nostr relay used by the demo and federation processes.
+//!
+//! This binary binds a relay port, serves Nostr events, and prints `RELAY_URL=...`
+//! so other local processes can connect to it.
+
 use std::env;
 
 use nostr_relay_builder::prelude::*;
