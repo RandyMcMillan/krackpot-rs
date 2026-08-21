@@ -144,7 +144,7 @@
         : branches.includes('master')
           ? 'master'
           : branches[0] || 'HEAD';
-      const commits = await git.log({ fs, dir: repo.dir, ref, depth: 10 });
+      const commits = await git.log({ fs, dir: repo.dir, ref, depth: 1 });
       const latest = commits[0]?.commit?.message || 'n/a';
       const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
