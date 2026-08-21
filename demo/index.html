@@ -24,6 +24,16 @@
     .njump-link:hover { text-decoration:underline; }
     .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
     .avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; border: 1px solid #334155; background: #020617; }
+    .profile-card { border:1px solid #334155; border-radius:10px; padding:10px; background:#0b1220; cursor:pointer; min-width:180px; }
+    .profile-card:hover { border-color:#8b5cf6; }
+    .profile-card .avatar { width: 36px; height: 36px; margin-right: 0; }
+    .profile-strip { display:flex; gap:10px; flex-wrap:wrap; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(2,6,23,.72); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
+    .modal-backdrop.open { display:flex; }
+    .modal { max-width:680px; width:100%; background:#111827; border:1px solid #334155; border-radius:12px; padding:16px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+    .modal h3 { margin-top:0; }
+    .modal .avatar { width: 56px; height: 56px; margin-right: 12px; }
+    .close-btn { margin-left:auto; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
@@ -48,12 +58,31 @@
     <div class="small muted" style="margin-top:8px;">Tip: open this via HTTP (GitHub Pages or local server), not <span class="mono">file://</span>.</div>
   </div>
 
+  <div class="panel">
+    <h3>Profiles</h3>
+    <div id="profileStrip" class="profile-strip"></div>
+  </div>
+
   <div class="grid">
     <form class="panel" id="createForm">
       <h3>New Event</h3>
       <div class="row" style="margin-bottom:8px;">
         <label>Author</label>
         <select id="author"></select>
+      </div>
+
+      <div id="profileModalBackdrop" class="modal-backdrop" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+          <div class="row" style="align-items:flex-start;">
+            <img id="profileModalAvatar" class="avatar" src="" alt="" />
+            <div style="flex:1;">
+              <h3 id="profileModalTitle"></h3>
+              <div id="profileModalMeta" class="small muted"></div>
+            </div>
+            <button id="profileModalClose" class="close-btn" type="button">Close</button>
+          </div>
+          <div id="profileModalBody" style="margin-top:12px;"></div>
+        </div>
       </div>
       <div class="row" style="margin-bottom:8px;">
         <label>Kind</label>
@@ -136,6 +165,13 @@
     const customParentsEl = document.getElementById('customParents');
     const createFormEl = document.getElementById('createForm');
     const stateListEl = document.getElementById('stateList');
+    const profileStripEl = document.getElementById('profileStrip');
+    const profileModalBackdropEl = document.getElementById('profileModalBackdrop');
+    const profileModalAvatarEl = document.getElementById('profileModalAvatar');
+    const profileModalTitleEl = document.getElementById('profileModalTitle');
+    const profileModalMetaEl = document.getElementById('profileModalMeta');
+    const profileModalBodyEl = document.getElementById('profileModalBody');
+    const profileModalCloseEl = document.getElementById('profileModalClose');
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
@@ -309,6 +345,38 @@
       return discoveredParticipants.get(pubkey)?.profile
         || participants.find((p) => p.pk === pubkey)?.profile
         || null;
+    }
+
+    function profileLabel(pubkey) {
+      return participantProfile(pubkey)?.name
+        || participantLabel(pubkey);
+    }
+
+    function openProfileModal(pubkey) {
+      const participant = participants.find((p) => p.pk === pubkey) || {};
+      const profile = participantProfile(pubkey) || participant.profile || {};
+      const name = profile.name || participant.name || pubkey.slice(0, 8);
+      const picture = profile.picture || participant.picture || '';
+      const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(pubkey);
+      const alternateSource = profile.alternate_source || njumpProfileUrlForPubkey(pubkey);
+      profileModalAvatarEl.src = picture;
+      profileModalAvatarEl.alt = `${name} avatar`;
+      profileModalTitleEl.textContent = name;
+      profileModalMetaEl.textContent = pubkey;
+      profileModalBodyEl.innerHTML = `
+        <div class="small muted" style="margin-bottom:8px;">${profile.about || participant.about || ''}</div>
+        <div class="small" style="margin-bottom:8px;"><span class="muted">Profile:</span> <a href="${profileUrl}" target="_blank" rel="noreferrer noopener">${profileUrl}</a></div>
+        <div class="small" style="margin-bottom:8px;"><span class="muted">Fallback:</span> <a href="${alternateSource}" target="_blank" rel="noreferrer noopener">${alternateSource}</a></div>
+        <div class="small"><span class="muted">Quorum:</span> ${profile.quorum_id || participant.quorumId || QUORUM_ID}</div>
+        <div class="small"><span class="muted">Event:</span> ${profile.quorum_event_id || QUORUM_ID}</div>
+      `;
+      profileModalBackdropEl.classList.add('open');
+      profileModalBackdropEl.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeProfileModal() {
+      profileModalBackdropEl.classList.remove('open');
+      profileModalBackdropEl.setAttribute('aria-hidden', 'true');
     }
 
     function normalizeRelayUrl(url) {
@@ -764,10 +832,31 @@
       const list = [...events.values()]
         .filter((event) => event.kind !== 0)
         .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+      const ackList = [...events.values()]
+        .filter((event) => event.kind === 21000)
+        .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
       const threshold = Math.floor(participants.length / 2);
       const relayList = [...RELAYS].sort();
       const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
+      profileStripEl.innerHTML = quorumMembers.map((p) => {
+        const profile = p.profile || {};
+        const name = profile.name || p.name;
+        const picture = profile.picture || p.picture;
+        const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(p.pk);
+        return `
+          <button class="profile-card" type="button" data-pk="${p.pk}">
+            <div class="row" style="align-items:center;">
+              <img class="avatar" src="${picture}" alt="${name} avatar" />
+              <div>
+                <div><b>${name}</b></div>
+                <div class="small muted">${p.pk.slice(0, 12)}…</div>
+              </div>
+            </div>
+            <div class="small muted" style="margin-top:8px; word-break:break-all;">${profileUrl}</div>
+          </button>
+        `;
+      }).join('');
       const quorumMemberMarkup = quorumMembers.map((p) => {
         const profile = p.profile || {};
         const discovered = discoveredParticipants.get(p.pk);
@@ -797,6 +886,18 @@
             return `<li style="word-break:break-all;"><span class="mono">${tip}</span> <span class="small muted">(${signerAvatar}${signerName})</span>${njumpLink}</li>`;
           }).join('')
         : '<li>none</li>';
+      const ackMarkup = ackList.length
+        ? ackList.map((e) => {
+            const signerProfile = participantProfile(e.author) || {};
+            const signerName = participantLabel(e.author);
+            const signerUrl = signerProfile.profile_url || nostrProfileUrlForPubkey(e.author);
+            const signerPicture = signerProfile.picture || '';
+            const signerAvatar = signerPicture
+              ? `<a href="${signerUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${signerPicture}" alt="${signerName} avatar" /></a>`
+              : '';
+            return `<li style="word-break:break-all;"><span class="mono">${e.id}</span> <span class="small muted">(${signerAvatar}${signerName})</span> <span class="small muted">${new Date(e.created_at * 1000).toLocaleString()}</span></li>`;
+          }).join('')
+        : '<li>none</li>';
 
       stateListEl.innerHTML = `
         <li>${list.length} events</li>
@@ -813,6 +914,9 @@
           </ul>
         </li>
         <li>Tips:<ul style="margin:6px 0 0 16px;">${tipsMarkup}</ul></li>
+        <li>kind 21000 events (chronological):
+          <ul style="margin:6px 0 0 16px;">${ackMarkup}</ul>
+        </li>
       `;
 
       document.getElementById('events').innerHTML = list.map((e) => {
@@ -852,6 +956,15 @@
       e.preventDefault();
       await createEvent();
     });
+    profileStripEl.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-pk]');
+      if (!card) return;
+      openProfileModal(card.getAttribute('data-pk'));
+    });
+    profileModalBackdropEl.addEventListener('click', (e) => {
+      if (e.target === profileModalBackdropEl) closeProfileModal();
+    });
+    profileModalCloseEl.addEventListener('click', closeProfileModal);
     document.getElementById('seedBtn').addEventListener('click', () => { void seedGenesis(); });
     document.getElementById('ackRoundBtn').addEventListener('click', () => { void runAckRound(); });
     document.getElementById('resetBtn').addEventListener('click', () => { void resetDag(); });
