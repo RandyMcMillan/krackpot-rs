@@ -336,7 +336,8 @@
       if (!libp2pFooterStatusEl) return;
       const { loaded, failed, total } = libp2pModuleCounts;
       const moduleText = total ? `modules ${loaded}/${total}${failed ? ` (${failed} failed)` : ''}` : 'modules loading...';
-      libp2pFooterStatusEl.textContent = `libp2p: ${libp2pPeerId} | ${moduleText}`;
+      const peerText = libp2pPeerId && libp2pPeerId !== 'starting...' ? `libp2p: ${libp2pPeerId} | ` : 'libp2p: ';
+      libp2pFooterStatusEl.textContent = `${peerText}${moduleText}`;
     }
 
     function setLibp2pStatus(text) {
@@ -349,6 +350,7 @@
       libp2pModuleCounts = counts;
       updateLibp2pFooter();
     }
+    window.__setLibp2pModuleCounts = setLibp2pModuleCounts;
 
     async function initLibp2pNode() {
       try {
@@ -362,7 +364,7 @@
         setLibp2pStatus(node.peerId.toString());
         console.log('Peer ID:', node.peerId.toString());
       } catch (e) {
-        setLibp2pStatus('unavailable');
+        setLibp2pStatus('');
         console.warn('libp2p bootstrap failed:', e);
       }
     }
@@ -1126,5 +1128,57 @@
       <span id="libp2pFooterStatus">libp2p: starting...</span>
     </div>
   </footer>
+  <script type="module">
+    const modules = [
+      ['libp2p', 'https://esm.sh/libp2p'],
+      ['@libp2p/interface', 'https://esm.sh/@libp2p/interface'],
+      ['@libp2p/peer-id', 'https://esm.sh/@libp2p/peer-id'],
+      ['@libp2p/logger', 'https://esm.sh/@libp2p/logger'],
+      ['@libp2p/websockets', 'https://esm.sh/@libp2p/websockets'],
+      ['@libp2p/webrtc', 'https://esm.sh/@libp2p/webrtc'],
+      ['@libp2p/webtransport', 'https://esm.sh/@libp2p/webtransport'],
+      ['@libp2p/circuit-relay-v2', 'https://esm.sh/@libp2p/circuit-relay-v2'],
+      ['@libp2p/tcp', 'https://esm.sh/@libp2p/tcp'],
+      ['@libp2p/memory', 'https://esm.sh/@libp2p/memory'],
+      ['@chainsafe/libp2p-noise', 'https://esm.sh/@chainsafe/libp2p-noise'],
+      ['@chainsafe/libp2p-yamux', 'https://esm.sh/@chainsafe/libp2p-yamux'],
+      ['@libp2p/tls', 'https://esm.sh/@libp2p/tls'],
+      ['@libp2p/mplex', 'https://esm.sh/@libp2p/mplex'],
+      ['@libp2p/plaintext', 'https://esm.sh/@libp2p/plaintext'],
+      ['@libp2p/bootstrap', 'https://esm.sh/@libp2p/bootstrap'],
+      ['@libp2p/kad-dht', 'https://esm.sh/@libp2p/kad-dht'],
+      ['@libp2p/delegated-peer-routing', 'https://esm.sh/@libp2p/delegated-peer-routing'],
+      ['@libp2p/delegated-content-routing', 'https://esm.sh/@libp2p/delegated-content-routing'],
+      ['@libp2p/mdns', 'https://esm.sh/@libp2p/mdns'],
+      ['@chainsafe/discv5', 'https://esm.sh/@chainsafe/discv5'],
+      ['@libp2p/gossipsub', 'https://esm.sh/@libp2p/gossipsub'],
+      ['@libp2p/floodsub', 'https://esm.sh/@libp2p/floodsub'],
+      ['@libp2p/autonat', 'https://esm.sh/@libp2p/autonat'],
+      ['@libp2p/autonat-v2', 'https://esm.sh/@libp2p/autonat-v2'],
+      ['@libp2p/identify', 'https://esm.sh/@libp2p/identify'],
+      ['@libp2p/ping', 'https://esm.sh/@libp2p/ping'],
+    ];
+
+    const results = await Promise.allSettled(
+      modules.map(async ([name, url]) => [name, await import(url)])
+    );
+    const registry = {};
+    let loaded = 0;
+    let failed = 0;
+
+    for (const [index, result] of results.entries()) {
+      const [name] = modules[index];
+      if (result.status === 'fulfilled') {
+        registry[name] = result.value[1];
+        loaded += 1;
+      } else {
+        failed += 1;
+        console.warn(`Failed to load ${name}:`, result.reason);
+      }
+    }
+
+    window.__libp2pModuleRegistry = registry;
+    window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
+  </script>
 </body>
 </html>
