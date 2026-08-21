@@ -259,6 +259,23 @@
       }, author.sk);
     }
 
+    function buildQuorumNoteEvent(author, profileEventIds, participantPubkeys) {
+      const tags = [
+        ...profileEventIds.map((id) => ['e', id]),
+        ...participantPubkeys.map((pk) => ['p', pk]),
+        ['t', 'nostr-dag'],
+        ['t', 'quorum'],
+      ];
+
+      return finalizeEvent({
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content: `Member ${author.displayName} of the nostr-dag quorum.`,
+        pubkey: author.pk,
+      }, author.sk);
+    }
+
     function currentTips() {
       return JSON.parse(dag.tip_ids());
     }
@@ -386,6 +403,17 @@
       }
       render();
       await publishEvents(profileEvents, 'Quorum metadata');
+
+      const profileEventIds = profileEvents.map((event) => event.id);
+      const participantPubkeys = participants.map((participant) => participant.pk);
+      const quorumNotes = participants.map((author) =>
+        buildQuorumNoteEvent(author, profileEventIds, participantPubkeys)
+      );
+      for (const event of quorumNotes) {
+        insertEvent(event);
+      }
+      render();
+      await publishEvents(quorumNotes, 'Quorum notes');
     }
 
     function render() {
