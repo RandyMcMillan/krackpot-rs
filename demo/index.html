@@ -337,14 +337,15 @@
       await publishProfiles();
     }
 
-    function buildMetadataEvent(author) {
+    function buildMetadataEvent(author, quorumEventId = author.quorumId) {
       const profile = {
         name: author.name,
         display_name: author.displayName,
-        about: author.about,
+        about: `${author.about} quorum_event_id: ${quorumEventId}.`,
         picture: author.picture,
         website: author.website,
         quorum_id: author.quorumId,
+        quorum_event_id: quorumEventId,
       };
 
       return finalizeEvent({
@@ -356,9 +357,8 @@
       }, author.sk);
     }
 
-    function buildQuorumGroupEvent(author, profileEventIds, participantPubkeys) {
+    function buildQuorumGroupEvent(author, participantPubkeys) {
       const tags = [
-        ...profileEventIds.map((id) => ['e', id]),
         ...participantPubkeys.map((pk) => ['p', pk]),
         ['d', QUORUM_ID],
         ['t', 'nostr-dag'],
@@ -518,19 +518,18 @@
     }
 
     async function publishProfiles() {
-      const profileEvents = participants.map((author) => buildMetadataEvent(author));
+      const participantPubkeys = participants.map((participant) => participant.pk);
+      const quorumEvent = buildQuorumGroupEvent(participants[participants.length - 1], participantPubkeys);
+      insertEvent(quorumEvent);
+      render();
+      await publishEvents([quorumEvent], 'Quorum note');
+
+      const profileEvents = participants.map((author) => buildMetadataEvent(author, quorumEvent.id));
       for (const event of profileEvents) {
         insertEvent(event);
       }
       render();
       await publishEvents(profileEvents, 'Quorum metadata');
-
-      const profileEventIds = profileEvents.map((event) => event.id);
-      const participantPubkeys = participants.map((participant) => participant.pk);
-      const quorumEvent = buildQuorumGroupEvent(participants[participants.length - 1], profileEventIds, participantPubkeys);
-      insertEvent(quorumEvent);
-      render();
-      await publishEvents([quorumEvent], 'Quorum note');
       await autoAckUntilCanonical(quorumEvent.id);
     }
 
