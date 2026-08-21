@@ -1335,7 +1335,7 @@
 
         setDepsStatus(`cached ${done}/${dependencyUrls.length}`);
       } catch (e) {
-        setDepsStatus('unavailable');
+        setDepsStatus(`partial 0/${dependencyUrls.length}`);
         console.warn('dependency cache bootstrap failed:', e);
       }
     }
