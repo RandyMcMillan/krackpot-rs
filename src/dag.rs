@@ -410,4 +410,178 @@ mod tests {
 
         assert!(dag.is_canonical(msg_id));
     }
+
+    #[test]
+    fn get_returns_inserted_event() {
+        let keys = Keys::generate();
+        let mut dag = Dag::new([keys.public_key()]);
+
+        let event = create_ack_event(&keys, &[]).unwrap();
+        let id = event.id;
+        unwrap_inserted(dag.insert(event));
+
+        assert!(dag.get(&id).is_some());
+        assert_eq!(dag.get(&id).unwrap().id, id);
+    }
+
+    #[test]
+    fn get_returns_none_for_unknown_id() {
+        let keys = Keys::generate();
+        let dag = Dag::new([keys.public_key()]);
+
+        assert!(dag.get(&EventId::all_zeros()).is_none());
+    }
+
+    #[test]
+    fn participants_reflects_initial_set() {
+        let alice = Keys::generate();
+        let bob = Keys::generate();
+        let dag = Dag::new([alice.public_key(), bob.public_key()]);
+
+        let participants = dag.participants();
+        assert_eq!(participants.len(), 2);
+        assert!(participants.contains(&alice.public_key()));
+        assert!(participants.contains(&bob.public_key()));
+    }
+
+    #[test]
+    fn len_and_is_empty() {
+        let keys = Keys::generate();
+        let mut dag = Dag::new([keys.public_key()]);
+
+        assert!(dag.is_empty());
+        assert_eq!(dag.len(), 0);
+
+        let e0 = create_ack_event(&keys, &[]).unwrap();
+        unwrap_inserted(dag.insert(e0));
+
+        assert!(!dag.is_empty());
+        assert_eq!(dag.len(), 1);
+    }
+
+    #[test]
+    fn seen_by_returns_none_for_unknown_event() {
+        let keys = Keys::generate();
+        let dag = Dag::new([keys.public_key()]);
+        assert!(dag.seen_by(EventId::all_zeros()).is_none());
+    }
+
+    #[test]
+    fn seen_by_tracks_participant_acks() {
+        let alice = Keys::generate();
+        let bob = Keys::generate();
+        let mut dag = Dag::new([alice.public_key(), bob.public_key()]);
+
+        let genesis = create_ack_event(&alice, &[]).unwrap();
+        let genesis_id = unwrap_inserted(dag.insert(genesis));
+
+        let seen = dag.seen_by(genesis_id).unwrap();
+        assert!(seen.contains(&alice.public_key()));
+        assert!(!seen.contains(&bob.public_key()));
+
+        let ack = create_ack_event(&bob, &[genesis_id]).unwrap();
+        unwrap_inserted(dag.insert(ack));
+
+        let seen = dag.seen_by(genesis_id).unwrap();
+        assert!(seen.contains(&alice.public_key()));
+        assert!(seen.contains(&bob.public_key()));
+    }
+
+    #[test]
+    fn empty_dag_has_no_tips() {
+        let keys = Keys::generate();
+        let dag = Dag::new([keys.public_key()]);
+        assert_eq!(dag.tips().collect::<Vec<_>>().len(), 0);
+    }
+
+    #[test]
+    fn canonical_order_empty_when_no_canonical_events() {
+        let alice = Keys::generate();
+        let bob = Keys::generate();
+        let mut dag = Dag::new([alice.public_key(), bob.public_key()]);
+
+        let genesis = create_ack_event(&alice, &[]).unwrap();
+        unwrap_inserted(dag.insert(genesis));
+
+        // Only one of two participants has seen genesis — not canonical
+        assert_eq!(dag.canonical_order().len(), 0);
+    }
+
+    #[test]
+    fn missing_parents_lists_all_awaited() {
+        let keys = Keys::generate();
+        let mut dag = Dag::new([keys.public_key()]);
+
+        let fake_a = EventId::all_zeros();
+        let fake_b = {
+            // create a distinct fake id
+            let e = create_ack_event(&keys, &[]).unwrap();
+            e.id
+        };
+
+        let e1 = create_ack_event(&keys, &[fake_a]).unwrap();
+        let e2 = create_ack_event(&keys, &[fake_b]).unwrap();
+
+        dag.insert(e1);
+        dag.insert(e2);
+
+        let missing: Vec<EventId> = dag.missing_parents().collect();
+        assert_eq!(missing.len(), 2);
+        assert!(missing.contains(&fake_a));
+        assert!(missing.contains(&fake_b));
+    }
+
+    #[test]
+    fn duplicate_pending_event_returns_duplicate() {
+        let keys = Keys::generate();
+        let mut dag = Dag::new([keys.public_key()]);
+
+        let fake_parent = EventId::all_zeros();
+        let event = create_ack_event(&keys, &[fake_parent]).unwrap();
+
+        assert!(matches!(dag.insert(event.clone()), InsertResult::Buffered { .. }));
+        assert!(matches!(dag.insert(event), InsertResult::Duplicate));
+        assert_eq!(dag.pending_count(), 1);
+    }
+
+    #[test]
+    fn non_participant_author_does_not_propagate_seen_by() {
+        let alice = Keys::generate();
+        let outsider = Keys::generate();
+        let mut dag = Dag::new([alice.public_key()]);
+
+        let genesis = create_ack_event(&alice, &[]).unwrap();
+        let genesis_id = unwrap_inserted(dag.insert(genesis));
+
+        // outsider references genesis but is not a participant
+        let msg = create_ack_event(&outsider, &[genesis_id]).unwrap();
+        unwrap_inserted(dag.insert(msg));
+
+        // genesis seen_by should only contain alice, not outsider
+        let seen = dag.seen_by(genesis_id).unwrap();
+        assert!(!seen.contains(&outsider.public_key()));
+    }
+
+    #[test]
+    fn depth_of_merge_event_uses_max_parent() {
+        let keys = Keys::generate();
+        let mut dag = Dag::new([keys.public_key()]);
+
+        let e0 = create_ack_event(&keys, &[]).unwrap();
+        let id0 = unwrap_inserted(dag.insert(e0));
+
+        // chain A: depth 1
+        let e1 = create_ack_event(&keys, &[id0]).unwrap();
+        let id1 = unwrap_inserted(dag.insert(e1));
+
+        // chain B: depth 2 (deeper than chain A)
+        let e2 = create_ack_event(&keys, &[id1]).unwrap();
+        let id2 = unwrap_inserted(dag.insert(e2));
+
+        // merge references id1 (depth=1) and id2 (depth=2); depth should be max+1 = 3
+        let merge = create_ack_event(&keys, &[id1, id2]).unwrap();
+        let merge_id = unwrap_inserted(dag.insert(merge));
+
+        assert_eq!(dag.depth(merge_id), Some(3));
+    }
 }
