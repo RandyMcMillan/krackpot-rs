@@ -108,7 +108,9 @@
     const events = new Map();
     const njumpAvailability = new Map();
     const pool = new SimplePool();
+    const broadcastRelays = new Set(RELAYS);
     let njumpPollTimer = null;
+    let relayDiscoveryStarted = false;
 
     const statusEl = document.getElementById('status');
     const authorEl = document.getElementById('author');
@@ -162,6 +164,49 @@
     function setStatus(message, ok = true) {
       statusEl.textContent = message;
       statusEl.className = `status ${ok ? 'ok' : 'err'}`;
+    }
+
+    function normalizeRelayUrl(url) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') return null;
+        return parsed.toString().replace(/\/$/, '');
+      } catch {
+        return null;
+      }
+    }
+
+    function addBroadcastRelay(url) {
+      const normalized = normalizeRelayUrl(url);
+      if (!normalized || broadcastRelays.has(normalized)) return false;
+      broadcastRelays.add(normalized);
+      render();
+      return true;
+    }
+
+    function discoverRelaysFromEvent(event) {
+      if (event.kind !== 10002) return;
+      for (const tag of event.tags) {
+        if (tag[0] === 'r' && tag[1]) {
+          addBroadcastRelay(tag[1]);
+        }
+      }
+    }
+
+    function startRelayDiscovery() {
+      if (relayDiscoveryStarted) return;
+      relayDiscoveryStarted = true;
+
+      pool.subscribe(
+        RELAYS,
+        [{ kinds: [10002], limit: 100 }],
+        {
+          onevent(event) {
+            discoverRelaysFromEvent(event);
+          },
+          oneose() {},
+        }
+      );
     }
 
     function initParticipants() {
@@ -265,8 +310,8 @@
 
     async function publishEvent(event) {
       try {
-        await Promise.any(pool.publish(RELAYS, event));
-        setStatus(`Published ${event.kind} to ${RELAYS.length} public relays.`, true);
+        await Promise.any(pool.publish([...broadcastRelays], event));
+        setStatus(`Published ${event.kind} to ${broadcastRelays.size} public relays.`, true);
       } catch (e) {
         setStatus(`Local only: publish failed (${e.message})`, false);
       }
@@ -274,7 +319,7 @@
 
     async function publishEvents(eventsToPublish, successLabel) {
       const results = await Promise.allSettled(
-        eventsToPublish.map((event) => Promise.any(pool.publish(RELAYS, event)))
+        eventsToPublish.map((event) => Promise.any(pool.publish([...broadcastRelays], event)))
       );
       const published = results.filter((result) => result.status === 'fulfilled').length;
 
@@ -349,6 +394,7 @@
       const list = [...events.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
       const threshold = Math.floor(participants.length / 2);
+      const relayList = [...broadcastRelays].sort();
       const tipsMarkup = tips.length
         ? tips.map((tip) => {
             const njump = njumpAvailability.get(tip);
@@ -363,6 +409,11 @@
         <li>${list.length} events</li>
         <li>${canonical.size} canonical</li>
         <li>threshold &gt; ${threshold} of ${participants.length}</li>
+        <li>broadcast relays (${broadcastRelays.size}):
+          <ul style="margin:6px 0 0 16px;">
+            ${relayList.map((relay) => `<li style="word-break:break-all;"><span class="mono">${relay}</span></li>`).join('')}
+          </ul>
+        </li>
         <li>Tips:<ul style="margin:6px 0 0 16px;">${tipsMarkup}</ul></li>
       `;
 
@@ -403,6 +454,7 @@
 
     try {
       await init();
+      startRelayDiscovery();
       await resetDag();
     } catch (e) {
       setStatus(`WASM load failed: ${e.message}`, false);
