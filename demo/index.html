@@ -92,6 +92,7 @@
   <script type="module">
     import init, { WasmDag } from './pkg/nostr_dag.js';
     import { finalizeEvent, generateSecretKey, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
+    import { neventEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
     import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
 
     const RELAYS = [
@@ -106,7 +107,9 @@
     let dag = null;
     let participants = [];
     const events = new Map();
+    const njumpAvailability = new Map();
     const pool = new SimplePool();
+    let njumpPollTimer = null;
 
     const statusEl = document.getElementById('status');
     const authorEl = document.getElementById('author');
@@ -117,6 +120,44 @@
     const createFormEl = document.getElementById('createForm');
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
+
+    function njumpUrlForEvent(eventId) {
+      return `https://njump.me/${neventEncode({ id: eventId })}`;
+    }
+
+    function njumpProbeUrlForEvent(eventId) {
+      return `https://njump.me/image/${neventEncode({ id: eventId })}?v=${Date.now()}`;
+    }
+
+    function scheduleNjumpPolling() {
+      if (njumpPollTimer) return;
+      njumpPollTimer = window.setInterval(() => {
+        for (const event of events.values()) {
+          if (!njumpAvailability.get(event.id)?.available) {
+            probeNjump(event.id);
+          }
+        }
+      }, 15000);
+    }
+
+    function probeNjump(eventId) {
+      if (njumpAvailability.get(eventId)?.available) return;
+
+      const img = new Image();
+      img.referrerPolicy = 'no-referrer';
+      img.onload = () => {
+        njumpAvailability.set(eventId, { available: true, url: njumpUrlForEvent(eventId) });
+        render();
+      };
+      img.onerror = () => {
+        if (!njumpAvailability.has(eventId)) {
+          njumpAvailability.set(eventId, { available: false, url: njumpUrlForEvent(eventId) });
+          render();
+        }
+      };
+      img.src = njumpProbeUrlForEvent(eventId);
+      scheduleNjumpPolling();
+    }
 
     function setStatus(message, ok = true) {
       statusEl.textContent = message;
@@ -149,6 +190,7 @@
       initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
       events.clear();
+      njumpAvailability.clear();
       render();
       setStatus('WASM loaded. DAG reset with 5 participants.', true);
       await publishProfiles();
@@ -209,6 +251,7 @@
       if (result.type === 'Duplicate') {
         throw new Error('Duplicate event');
       }
+      probeNjump(event.id);
       events.set(event.id, {
         id: event.id,
         kind: event.kind,
@@ -315,11 +358,18 @@
         const who = participants.find((p) => p.pk === e.author)?.name || e.author.slice(0, 8);
         const stateClass = canonical.has(e.id) ? 'canonical' : 'pending';
         const stateText = canonical.has(e.id) ? 'canonical' : 'pending';
+        const njump = njumpAvailability.get(e.id);
+        const njumpMarkup = njump?.available
+          ? `<a class="chip canonical" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+          : '';
         return `
           <div class="event">
             <div class="row" style="justify-content:space-between;">
               <div><b>${who}</b> <span class="small muted">kind ${e.kind}</span></div>
-              <span class="chip ${stateClass}">${stateText}</span>
+              <div class="row">
+                ${njumpMarkup}
+                <span class="chip ${stateClass}">${stateText}</span>
+              </div>
             </div>
             <div class="mono">id: ${e.id}</div>
             <div class="small">parents: ${e.parents.length ? e.parents.map(short).join(', ') : 'none'}</div>
