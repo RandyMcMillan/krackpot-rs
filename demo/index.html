@@ -1127,6 +1127,7 @@
     <div class="sticky-footer-inner small muted">
       <span id="libp2pFooterStatus">libp2p: starting...</span>
       <span id="gitFooterStatus" style="display:block; margin-top:4px;">git: starting...</span>
+      <span id="depsFooterStatus" style="display:block; margin-top:4px;">deps: starting...</span>
     </div>
   </footer>
   <script type="module">
@@ -1235,6 +1236,90 @@
     }
 
     void runGitWorkflow();
+  </script>
+  <script type="module">
+    import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
+
+    const depsFooterStatusEl = document.getElementById('depsFooterStatus');
+    const depsFs = new LightningFS('deps');
+    const depsDir = '/deps';
+    const dependencyUrls = [
+      'https://esm.sh/nostr-tools@2.10.4/pure',
+      'https://esm.sh/nostr-tools@2.10.4/nip19',
+      'https://esm.sh/nostr-tools@2.10.4/pool',
+      'https://esm.sh/libp2p',
+      'https://esm.sh/@libp2p/interface',
+      'https://esm.sh/@libp2p/peer-id',
+      'https://esm.sh/@libp2p/logger',
+      'https://esm.sh/@libp2p/websockets',
+      'https://esm.sh/@libp2p/webrtc',
+      'https://esm.sh/@libp2p/webtransport',
+      'https://esm.sh/@libp2p/circuit-relay-v2',
+      'https://esm.sh/@libp2p/tcp',
+      'https://esm.sh/@libp2p/memory',
+      'https://esm.sh/@chainsafe/libp2p-noise',
+      'https://esm.sh/@chainsafe/libp2p-yamux',
+      'https://esm.sh/@libp2p/tls',
+      'https://esm.sh/@libp2p/mplex',
+      'https://esm.sh/@libp2p/plaintext',
+      'https://esm.sh/@libp2p/bootstrap',
+      'https://esm.sh/@libp2p/kad-dht',
+      'https://esm.sh/@libp2p/delegated-peer-routing',
+      'https://esm.sh/@libp2p/delegated-content-routing',
+      'https://esm.sh/@libp2p/mdns',
+      'https://esm.sh/@chainsafe/discv5',
+      'https://esm.sh/@libp2p/gossipsub',
+      'https://esm.sh/@libp2p/floodsub',
+      'https://esm.sh/@libp2p/autonat',
+      'https://esm.sh/@libp2p/autonat-v2',
+      'https://esm.sh/@libp2p/identify',
+      'https://esm.sh/@libp2p/ping',
+      'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm',
+      'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm',
+      'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm',
+    ];
+
+    function setDepsStatus(text) {
+      if (depsFooterStatusEl) depsFooterStatusEl.textContent = `deps: ${text}`;
+    }
+
+    function safeFilename(url) {
+      return encodeURIComponent(url).replace(/%2F/g, '_').replace(/%3A/g, '-');
+    }
+
+    async function cacheDependency(url) {
+      const response = await fetch(url, { mode: 'cors', cache: 'force-cache' });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const text = await response.text();
+      await depsFs.promises.writeFile(`${depsDir}/${safeFilename(url)}.mjs`, text);
+    }
+
+    async function cacheDependencies() {
+      try {
+        await depsFs.promises.mkdir(depsDir, { recursive: true });
+        setDepsStatus(`caching 0/${dependencyUrls.length}...`);
+
+        let done = 0;
+        for (const url of dependencyUrls) {
+          try {
+            await cacheDependency(url);
+          } catch (e) {
+            console.warn('dependency cache failed:', url, e);
+          } finally {
+            done += 1;
+            setDepsStatus(`caching ${done}/${dependencyUrls.length}`);
+            await new Promise((resolve) => window.setTimeout(resolve, 50));
+          }
+        }
+
+        setDepsStatus(`cached ${done}/${dependencyUrls.length}`);
+      } catch (e) {
+        setDepsStatus('unavailable');
+        console.warn('dependency cache bootstrap failed:', e);
+      }
+    }
+
+    void cacheDependencies();
   </script>
 </body>
 </html>
