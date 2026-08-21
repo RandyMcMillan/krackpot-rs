@@ -145,6 +145,13 @@ impl Dag {
             .unwrap_or(false)
     }
 
+    pub fn canonical_events(&self) -> impl Iterator<Item = EventId> + '_ {
+        self.events
+            .keys()
+            .copied()
+            .filter(|id| self.is_canonical(*id))
+    }
+
     pub fn tips(&self) -> impl Iterator<Item = EventId> + '_ {
         self.events.keys().copied().filter(|id| {
             self.children
