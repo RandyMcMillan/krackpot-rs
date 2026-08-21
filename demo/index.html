@@ -174,6 +174,9 @@
     const profileModalMetaEl = document.getElementById('profileModalMeta');
     const profileModalBodyEl = document.getElementById('profileModalBody');
     const profileModalCloseEl = document.getElementById('profileModalClose');
+    const resetBtnEl = document.getElementById('resetBtn');
+    const seedBtnEl = document.getElementById('seedBtn');
+    const ackRoundBtnEl = document.getElementById('ackRoundBtn');
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
@@ -311,6 +314,12 @@
     function setStatus(message, ok = true) {
       statusEl.textContent = message;
       statusEl.className = `status ${ok ? 'ok' : 'err'}`;
+    }
+
+    function setControlsEnabled(enabled) {
+      resetBtnEl.disabled = !enabled;
+      seedBtnEl.disabled = !enabled;
+      ackRoundBtnEl.disabled = !enabled;
     }
 
     function scheduleRetry(key, fn, delayMs) {
@@ -1035,8 +1044,10 @@
     document.getElementById('seedBtn').addEventListener('click', () => { void seedGenesis(); });
     document.getElementById('ackRoundBtn').addEventListener('click', () => { void runAckRound(); });
     document.getElementById('resetBtn').addEventListener('click', () => { void resetDag(); });
+    setControlsEnabled(true);
 
     try {
+      setControlsEnabled(true);
       await init();
       await initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
@@ -1049,6 +1060,7 @@
       }
     } catch (e) {
       setStatus(`WASM load failed: ${e.message}`, false);
+      setControlsEnabled(true);
     }
   </script>
 </body>
