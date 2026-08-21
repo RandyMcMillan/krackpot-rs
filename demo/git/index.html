@@ -138,6 +138,26 @@
     window.gitFs = fs;
     window.gitRepos = repos;
 
+    function findGitRoot(pathname) {
+      const marker = '/git/';
+      const index = pathname.indexOf(marker);
+      if (index >= 0) {
+        return `${pathname.slice(0, index + marker.length)}`;
+      }
+      return '/git/';
+    }
+
+    function findSelectedRepoName(pathname, repoList) {
+      const parts = pathname.replace(/\/+$/, '').split('/').filter(Boolean).map(decodeURIComponent);
+      const repoNames = new Set(repoList.map((repo) => repo.name));
+      for (let i = parts.length - 1; i >= 0; i -= 1) {
+        if (repoNames.has(parts[i])) {
+          return parts[i];
+        }
+      }
+      return null;
+    }
+
     function warmFavicon(url) {
       if (faviconCache.has(url)) {
         return;
@@ -157,11 +177,9 @@
     const reposEl = document.getElementById('repos');
     const repoState = new Map();
     const params = new URLSearchParams(window.location.search);
-    const pathParts = window.location.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
-    const selectedRepoName = params.get('repo') || (pathParts[0] === 'git' && pathParts[1] ? decodeURIComponent(pathParts[1]) : null);
     const selectedBranchName = params.get('branch');
-    const siteRoot = new URL('../', window.location.href).pathname;
-    const gitRoot = `${siteRoot}git/`;
+    const gitRoot = findGitRoot(window.location.pathname);
+    const selectedRepoName = params.get('repo') || findSelectedRepoName(window.location.pathname, repos);
 
     function setStatus(text) {
       statusEl.textContent = text;
