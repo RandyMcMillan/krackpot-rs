@@ -1126,6 +1126,7 @@
   <footer class="sticky-footer">
     <div class="sticky-footer-inner small muted">
       <span id="libp2pFooterStatus">libp2p: starting...</span>
+      <span id="gitFooterStatus" style="display:block; margin-top:4px;">git: starting...</span>
     </div>
   </footer>
   <script type="module">
@@ -1179,6 +1180,61 @@
 
     window.__libp2pModuleRegistry = registry;
     window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
+  </script>
+  <script type="module">
+    import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
+    import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
+    import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
+
+    const gitFooterStatusEl = document.getElementById('gitFooterStatus');
+    const fs = new LightningFS('fs');
+    const dir = '/repo';
+
+    function setGitStatus(text) {
+      if (gitFooterStatusEl) gitFooterStatusEl.textContent = `git: ${text}`;
+    }
+
+    async function runGitWorkflow() {
+      try {
+        setGitStatus('cloning...');
+        await git.clone({
+          fs,
+          http,
+          dir,
+          corsProxy: 'https://cors.isomorphic-git.org',
+          url: 'https://github.com/isomorphic-git/isomorphic-git',
+          singleBranch: true,
+          depth: 1,
+        });
+
+        setGitStatus('reading history...');
+        const commits = await git.log({ fs, dir });
+        console.log('Latest Commit:', commits[0].commit.message);
+
+        setGitStatus('writing file...');
+        await fs.promises.writeFile(`${dir}/example.txt`, 'Hello World!');
+
+        setGitStatus('committing...');
+        await git.add({ fs, dir, filepath: 'example.txt' });
+        const sha = await git.commit({
+          fs,
+          dir,
+          author: {
+            name: 'Developer',
+            email: 'dev@example.com',
+          },
+          message: 'Add example.txt via browser',
+        });
+
+        console.log('New Commit SHA:', sha);
+        setGitStatus(`done: ${sha}`);
+      } catch (e) {
+        setGitStatus('unavailable');
+        console.warn('git bootstrap failed:', e);
+      }
+    }
+
+    void runGitWorkflow();
   </script>
 </body>
 </html>
