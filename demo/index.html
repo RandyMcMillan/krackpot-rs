@@ -630,7 +630,9 @@
     function render() {
       const canonical = canonicalSet();
       const tips = currentTips();
-      const list = [...events.values()].sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+      const list = [...events.values()]
+        .filter((event) => event.kind !== 0)
+        .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
 
       const threshold = Math.floor(participants.length / 2);
       const relayList = [...RELAYS].sort();
