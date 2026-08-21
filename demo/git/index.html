@@ -253,6 +253,13 @@
         : emptyLabel;
     }
 
+    function buildSelectOptions(items, selectedValue, placeholder) {
+      const optionList = items.length
+        ? items.map((item) => `<option value="${item}" ${item === selectedValue ? 'selected' : ''}>${item}</option>`).join('')
+        : '<option value="">none</option>';
+      return `<option value="">${placeholder}</option>${optionList}`;
+    }
+
     async function pathExists(path) {
       try {
         await fs.promises.stat(path);
@@ -265,6 +272,8 @@
     function repoCard(repo, data) {
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
       const activeClass = selectedRepoName === repo.name ? ' active' : '';
+      const branchValue = selectedRepoName === repo.name ? (selectedBranchName || data.ref || '') : (data.ref || '');
+      const tagValue = selectedRepoName === repo.name ? (selectedTagName || '') : '';
       return `
         <div class="repo${activeClass}">
           <h3 class="repo-title">
@@ -275,8 +284,14 @@
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${data.ref || 'n/a'}</span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${data.latest || 'n/a'}</span></div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Branches:</span> ${formatList(data.branches)}</div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${formatList(data.tags)}</div>
+          <div class="small" style="margin-top:8px;">
+            <div class="muted">Branch</div>
+            <select data-branch-select="${repo.name}" style="width:100%; margin-top:6px;">${buildSelectOptions(data.branches, branchValue, 'Quick jump branch')}</select>
+          </div>
+          <div class="small" style="margin-top:8px;">
+            <div class="muted">Tag</div>
+            <select data-tag-select="${repo.name}" style="width:100%; margin-top:6px;">${buildSelectOptions(data.tags, tagValue, 'Quick jump tag')}</select>
+          </div>
           <div class="repo-footer">
             <div class="repo-actions">
               <button class="repo-refresh" type="button" data-refresh-repo="${repo.name}">Refresh</button>
@@ -315,7 +330,9 @@
     }
 
     async function readRepo(repo, commitDepth = 1, refOverride = null, fileLimit = 40) {
-      const branches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
+      const localBranches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
+      const remoteBranches = await git.listBranches({ fs, dir: repo.dir, remote: 'origin' }).catch(() => []);
+      const branches = [...new Set([...localBranches, ...remoteBranches])];
       const ref = refOverride || (branches.includes('main')
         ? 'main'
         : branches.includes('master')
@@ -403,6 +420,18 @@
     function renderRepos(results = null) {
       const data = results || repos.map(() => emptyRepoData());
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
+      reposEl.querySelectorAll('[data-branch-select], [data-tag-select]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const repo = repos.find((entry) => entry.name === select.getAttribute('data-branch-select') || select.getAttribute('data-tag-select'));
+          if (!repo) return;
+          const branchSelect = reposEl.querySelector(`[data-branch-select="${repo.name}"]`);
+          const tagSelect = reposEl.querySelector(`[data-tag-select="${repo.name}"]`);
+          window.location.href = repoSelectionHref(repo, {
+            branch: branchSelect && branchSelect.value ? branchSelect.value : null,
+            tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+          });
+        });
+      });
       reposEl.querySelectorAll('[data-refresh-repo]').forEach((button) => {
         button.addEventListener('click', () => {
           void refreshOneRepo(button.getAttribute('data-refresh-repo'));
