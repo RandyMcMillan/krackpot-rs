@@ -24,6 +24,7 @@
     .njump-link:hover { text-decoration:underline; }
     .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
     .avatar { width: 18px; height: 18px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; }
+    .site-ico { width: 14px; height: 14px; vertical-align: middle; margin-left: 6px; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
@@ -181,6 +182,10 @@
       return `https://nostr.com/${npubEncode(pubkey)}`;
     }
 
+    function nostrProfileIconUrl() {
+      return 'https://nostr.com/favicon.ico';
+    }
+
     function profileUrlsForPubkey(pubkey) {
       return [njumpProfileUrlForPubkey(pubkey), nostrProfileUrlForPubkey(pubkey)];
     }
@@ -202,39 +207,39 @@
             probeNjump(event.id);
           }
         }
-
-        async function warmProfileUrl(url) {
-          try {
-            await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store', credentials: 'omit' });
-          } catch {
-            // Best-effort only; this is just to spread load across sources.
-          }
-        }
-
-        async function warmParticipantProfiles() {
-          if (profilePollInFlight || participants.length === 0) return;
-          profilePollInFlight = true;
-
-          try {
-            const targets = [
-              ...participants,
-              ...discoveredParticipants.values(),
-            ].filter((participant, index, list) => participant?.pk && list.findIndex((p) => p.pk === participant.pk) === index);
-
-            for (const participant of targets) {
-              await warmProfileUrl(pickRandomProfileUrl(participant.pk));
-              await sleep(250);
-            }
-          } finally {
-            profilePollInFlight = false;
-          }
-        }
         for (const participant of discoveredParticipants.values()) {
           if (participant.eventId && !njumpAvailability.get(participant.eventId)?.available) {
             probeNjump(participant.eventId);
           }
         }
       }, 15000);
+    }
+
+    async function warmProfileUrl(url) {
+      try {
+        await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store', credentials: 'omit' });
+      } catch {
+        // Best-effort only; this is just to spread load across sources.
+      }
+    }
+
+    async function warmParticipantProfiles() {
+      if (profilePollInFlight || participants.length === 0) return;
+      profilePollInFlight = true;
+
+      try {
+        const targets = [
+          ...participants,
+          ...discoveredParticipants.values(),
+        ].filter((participant, index, list) => participant?.pk && list.findIndex((p) => p.pk === participant.pk) === index);
+
+        for (const participant of targets) {
+          await warmProfileUrl(pickRandomProfileUrl(participant.pk));
+          await sleep(250);
+        }
+      } finally {
+        profilePollInFlight = false;
+      }
     }
 
     function scheduleParticipantPolling() {
@@ -748,7 +753,7 @@
           ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
           : '';
         const altSourceLink = p.profile?.alternate_source
-          ? ` <a class="small muted" href="${p.profile.alternate_source}" target="_blank" rel="noreferrer noopener" title="Alternate profile source">nostr.com</a>`
+          ? ` <a href="${p.profile.alternate_source}" target="_blank" rel="noreferrer noopener" title="Alternate profile source"><img class="site-ico" src="${nostrProfileIconUrl()}" alt="nostr.com" /></a>`
           : '';
         const profileUrl = p.profile?.profile_url || njumpProfileUrlForPubkey(p.pk);
         return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${profileUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in njump"><img class="avatar" src="${p.picture}" alt="${p.name} avatar" /></a>${p.name}${altSourceLink})</span>${njumpLink}</li>`;
