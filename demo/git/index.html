@@ -370,7 +370,17 @@
       return defaultRefForRefs(branches, tags);
     }
 
-    async function ensureRepo(repo) {
+    function fetchSelectionOptions(route) {
+      if (route?.branch) {
+        return { ref: route.branch, singleBranch: true };
+      }
+      if (route?.tag) {
+        return { ref: route.tag };
+      }
+      return {};
+    }
+
+    async function ensureRepo(repo, route = null) {
       const url = repo.url;
       const dir = repo.dir;
       try {
@@ -396,11 +406,12 @@
       }
 
       setRepoStatus(repo.name, 'fetching tags...');
-      await fetchRepoRefs(repo).catch(() => {});
+      await fetchRepoRefs(repo, route).catch(() => {});
       setRepoStatus(repo.name, 'ready');
     }
 
-    async function fetchRepoRefs(repo) {
+    async function fetchRepoRefs(repo, route = null) {
+      const selection = fetchSelectionOptions(route);
       await git.fetch({
         fs,
         http,
@@ -409,6 +420,7 @@
         url: repo.url,
         all: true,
         tags: true,
+        ...selection,
       });
     }
 
@@ -597,11 +609,16 @@
         });
       });
       reposEl.querySelectorAll('[data-branch-select], [data-tag-select]').forEach((select) => {
-        select.addEventListener('change', () => {
+        select.addEventListener('change', async () => {
           const repo = repos.find((entry) => entry.name === select.getAttribute('data-branch-select') || select.getAttribute('data-tag-select'));
           if (!repo) return;
           const branchSelect = reposEl.querySelector(`[data-branch-select="${repo.name}"]`);
           const tagSelect = reposEl.querySelector(`[data-tag-select="${repo.name}"]`);
+          const nextRoute = {
+            branch: branchSelect && branchSelect.value ? branchSelect.value : null,
+            tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+          };
+          await ensureRepo(repo, nextRoute);
           window.location.href = repoSelectionHref(repo, {
             branch: branchSelect && branchSelect.value ? branchSelect.value : null,
             tag: tagSelect && tagSelect.value ? tagSelect.value : null,
@@ -614,8 +631,8 @@
       const repo = repos.find((entry) => entry.name === repoName);
       if (!repo) return;
       setRepoStatus(repo.name, 'refreshing...');
-      await ensureRepo(repo);
       const route = getRouteContext().repo?.name === repo.name ? getRouteContext() : null;
+      await ensureRepo(repo, route);
       const data = await readRepo(repo, route);
       cacheRepoData(repo.name, data);
       renderApp(repos.map((entry) => {
@@ -659,7 +676,7 @@
       try {
         setStatus(`loading ${route.repo.name}...`);
         renderApp();
-        await ensureRepo(route.repo);
+        await ensureRepo(route.repo, route);
         const data = await readRepo(route.repo, route);
         cacheRepoData(route.repo.name, data);
         renderApp(data);
