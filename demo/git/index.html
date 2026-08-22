@@ -71,33 +71,36 @@
   .detail-grid { display:grid; grid-template-columns: 2fr 1fr; gap:14px; }
   .repo { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
   .repo h3 { margin-top:0; }
-  .repo-page { display:grid; gap:14px; }
-  .repo-hero { border:1px solid var(--border); border-radius:8px; background:var(--panel); padding:16px; }
+  .repo-page { display:grid; gap:16px; }
+  .repo-hero { border:1px solid var(--border); border-radius:6px; background:var(--surface); padding:20px 20px 0; }
   .repo-breadcrumbs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; color:var(--muted); font-size:12px; }
   .repo-breadcrumbs a { color:inherit; text-decoration:none; }
   .repo-breadcrumbs a:hover { color:var(--accent); }
-  .repo-title-row { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-top:8px; }
+  .repo-title-row { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-top:10px; }
   .repo-title { display:flex; flex-direction:column; gap:4px; }
-  .repo-title h2 { margin:0; font-size:28px; line-height:1.15; }
+  .repo-title h2 { margin:0; font-size:32px; line-height:1.15; }
   .repo-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-  .repo-tabs { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-top:14px; }
-  .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:2px solid transparent; color:var(--muted); text-decoration:none; }
+  .repo-tabs { display:flex; gap:4px; align-items:flex-end; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-top:18px; padding:0 2px; }
+  .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:12px 14px 11px; border-bottom:2px solid transparent; color:var(--muted); text-decoration:none; }
   .repo-tab.active { color:var(--fg); border-bottom-color:var(--accent); font-weight:600; }
-  .repo-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; }
+  .repo-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; padding:12px 0 4px; }
   .repo-toolbar .spacer { flex:1 1 auto; }
   .repo-select { min-width:220px; }
   .repo-layout { display:grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap:14px; align-items:stretch; margin-top:14px; }
   .repo-main { display:flex; flex-direction:column; gap:14px; min-height:100%; }
   .repo-sidebar { display:flex; flex-direction:column; gap:14px; min-height:100%; }
-  .repo-sidebar-card { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
+  .repo-sidebar-card { border:1px solid var(--border); border-radius:6px; background:var(--surface); padding:12px; }
   .repo-bumper { flex:1 1 auto; min-height:160px; }
-  .repo-files { border:1px solid var(--border); border-radius:8px; background:var(--surface); overflow:hidden; }
-  .repo-files-header, .repo-files-row { display:grid; grid-template-columns: 1fr 140px 180px; gap:10px; align-items:center; padding:10px 12px; }
-  .repo-files-header { background:var(--status-bg); color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .repo-files { border:1px solid var(--border); border-radius:6px; background:var(--panel); overflow:hidden; }
+  .repo-files-header, .repo-files-row { display:grid; grid-template-columns: minmax(0, 1fr) 120px; gap:10px; align-items:center; padding:12px 16px; }
+  .repo-files-header { background:var(--surface); color:var(--muted); font-size:12px; font-weight:600; border-bottom:1px solid var(--border); }
   .repo-files-row { border-top:1px solid var(--border); text-decoration:none; color:inherit; }
-  .repo-files-row:hover { background:rgba(124,58,237,.08); }
-  .repo-files-name { display:flex; align-items:center; gap:8px; min-width:0; }
-  .repo-files-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .repo-files-row:hover { background:rgba(175,184,193,.12); }
+  .repo-files-icon { width:16px; color:var(--muted); flex:0 0 auto; text-align:center; }
+  .repo-files-path { display:flex; align-items:center; gap:6px; min-width:0; color:var(--fg); flex-wrap:wrap; }
+  .repo-files-path-link { color:inherit; text-decoration:none; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .repo-files-path-link:hover { color:var(--accent); text-decoration:underline; }
+  .repo-files-path-separator { color:var(--muted); flex:0 0 auto; }
   .repo-files-empty { padding:16px; }
   .repo-commit-list { display:grid; gap:10px; }
   .repo-commit-item { display:block; border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; color:inherit; text-decoration:none; }
@@ -400,11 +403,12 @@
       `;
     }
 
-    function repoSelectionHref(repo, { branch = null, tag = null } = {}) {
+    function repoSelectionHref(repo, { branch = null, tag = null, path = null } = {}) {
       const search = new URLSearchParams();
       search.set('repo', repo.name);
       if (branch) search.set('branch', branch);
       if (tag) search.set('tag', tag);
+      if (path) search.set('path', path);
       return resolveHref(`./?${search.toString()}`);
     }
 
@@ -457,6 +461,7 @@
         view: params.get('view') || '',
         branch: params.get('branch') || '',
         tag: params.get('tag') || '',
+        path: params.get('path') || '',
         commit: params.get('commit') || '',
       };
     }
@@ -1158,30 +1163,41 @@
       if (!files.length) {
         return '<div class="repo-files-empty muted">No files found for this ref.</div>';
       }
+      const renderPath = (file) => {
+        const parts = file.split('/').filter(Boolean);
+        return `<div class="repo-files-path"><span class="repo-files-icon">📄</span>${parts.map((part, index) => {
+          const isLast = index === parts.length - 1;
+          const href = isLast
+            ? repoFileHref(repo, {
+              branch: route?.branch || null,
+              tag: route?.tag || null,
+              commit: route?.commit || null,
+              path: file,
+            })
+            : repoSelectionHref(repo, {
+              branch: route?.branch || null,
+              tag: route?.tag || null,
+              path: parts.slice(0, index + 1).join('/'),
+            });
+          const segment = `<a class="repo-files-path-link${isLast ? ' final' : ''}" href="${href}">${escapeHtml(part)}</a>`;
+          return isLast ? segment : `${segment}<span class="repo-files-path-separator">/</span>`;
+        }).join('')}</div>`;
+      };
       return `
         <div class="repo-files">
         <div class="repo-files-header">
-          <div>Name</div>
-          <div>Type</div>
           <div>Path</div>
+          <div>Type</div>
         </div>
         ${files.map((file) => {
           const parts = file.split('/');
           const name = parts[parts.length - 1] || file;
-          const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '.';
           const ext = name.includes('.') ? name.split('.').pop() : 'file';
-          const href = repoFileHref(repo, {
-            branch: route?.branch || null,
-            tag: route?.tag || null,
-            commit: route?.commit || null,
-            path: file,
-          });
           return `
-            <a class="repo-files-row mono" href="${href}">
-              <div class="repo-files-name"><span>📄</span><span>${escapeHtml(name)}</span></div>
+            <div class="repo-files-row mono">
+              <div>${renderPath(file)}</div>
               <div>${escapeHtml(ext)}</div>
-              <div>${escapeHtml(folder)}</div>
-            </a>
+            </div>
           `;
         }).join('')}
         </div>
@@ -1197,10 +1213,9 @@
       const healthState = getRepoHealth(repo.name);
       const healthClass = repoHealthClass(healthState);
       const currentCommit = data.latestCommit || null;
-      const latestMessage = currentCommit ? currentCommit.summary : 'n/a';
       const commitCount = data.commits.length;
       const selectedView = route.view === 'commits' ? 'commits' : 'code';
-      const commitsUrl = `${repo.url.replace(/\/$/, '')}/commits/${encodeURIComponent(data.resolvedRef || data.selectedRef || data.ref || 'HEAD')}/`;
+      const displayedFiles = route.path ? data.files.filter((file) => file === route.path || file.startsWith(`${route.path.replace(/\/+$/, '')}/`)) : data.files;
       return `
         <div class="repo-page">
           <div class="repo-hero">
@@ -1231,9 +1246,6 @@
             <div class="repo-tabs" role="tablist" aria-label="Repository sections">
               <a class="repo-tab${selectedView === 'code' ? ' active' : ''}" href="${repoSelectionHref(repo, route)}">Code</a>
               <a class="repo-tab${selectedView === 'commits' ? ' active' : ''}" href="${repoCommitsHref(repo, route)}">Commits</a>
-              <a class="repo-tab" href="${repo.url}" target="_blank" rel="noreferrer noopener">Upstream</a>
-              <a class="repo-tab" href="${commitsUrl}" target="_blank" rel="noreferrer noopener">GitHub commits</a>
-              <span class="repo-tab">Latest: ${escapeHtml(latestMessage.slice(0, 40))}</span>
             </div>
           </div>
 
@@ -1264,9 +1276,9 @@
                 <div class="repo-sidebar-card">
                   <div class="row" style="justify-content:space-between; align-items:center;">
                     <h3 style="margin:0;">Files</h3>
-                    <span class="muted small">${data.files.length} entries</span>
+                    <span class="muted small">${displayedFiles.length} entries</span>
                   </div>
-                  <div style="margin-top:10px;">${renderFileList(repo, data.files, route)}</div>
+                  <div style="margin-top:10px;">${renderFileList(repo, displayedFiles, route)}</div>
                 </div>
               `}
               <div class="repo-sidebar-card repo-bumper" aria-hidden="true"></div>
@@ -1355,6 +1367,7 @@
             repoName: repo.name,
             branch: branchSelect && branchSelect.value ? branchSelect.value : null,
             tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+            path: route.path || '',
           };
           window.history.pushState({}, '', repoSelectionHref(repo, nextRoute));
           await refreshDetail(nextRoute);
@@ -1373,6 +1386,7 @@
             view: 'commits',
             branch: branchSelect && branchSelect.value ? branchSelect.value : null,
             tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+            path: route.path || '',
           };
           window.history.pushState({}, '', repoCommitsHref(repo, nextRoute));
           await refreshDetail(nextRoute);
@@ -1390,6 +1404,7 @@
             view: route.view || '',
             branch: isBranchSelect && select.value ? select.value : null,
             tag: !isBranchSelect && select.value ? select.value : null,
+            path: route.path || '',
           };
           window.history.replaceState({}, '', route.view === 'commits' ? repoCommitsHref(repo, nextRoute) : repoSelectionHref(repo, nextRoute));
           await refreshDetail(nextRoute);
