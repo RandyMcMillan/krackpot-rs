@@ -1,6 +1,6 @@
 [package]
 name = "nostr-dag"
-version = "0.6.1"
+version = "0.7.0"
 edition = "2021"
 license = "MIT"
 description = "DAG-based optimistic consensus for Nostr"
