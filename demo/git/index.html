@@ -531,7 +531,7 @@
       return renderRepoCard(createRepoCardModel(repo, data));
     }
 
-    function createCommitSummary(commit) {
+    function createCommitSummary(commit, decorations = []) {
       const message = commit?.commit?.message || 'n/a';
       const summary = message.split('\n')[0] || 'n/a';
       const author = commit?.commit?.author?.name || 'unknown';
@@ -545,6 +545,7 @@
         date,
         message,
         parents,
+        decorations,
       };
     }
 
@@ -573,6 +574,45 @@
         }
       }));
       return matches.find(Boolean) || '';
+    }
+
+    async function collectCommitDecorations(repo, localBranches, remoteBranches, route, commits) {
+      const decorationsByOid = new Map();
+      const commitOids = new Map(commits.map((commit) => [commit.oid, commit]));
+
+      async function addDecoration(ref, label) {
+        try {
+          const oid = await git.resolveRef({ fs, dir: repo.dir, ref });
+          if (!decorationsByOid.has(oid)) decorationsByOid.set(oid, []);
+          const labels = decorationsByOid.get(oid);
+          if (!labels.includes(label)) labels.push(label);
+          return oid;
+        } catch {
+          return null;
+        }
+      }
+
+      await Promise.all([
+        ...localBranches.map((branch) => addDecoration(branch, branch)),
+        ...remoteBranches.map((branch) => addDecoration(branch, branch)),
+      ]);
+
+      if (route?.branch) {
+        const headOid = await addDecoration(route.branch, `HEAD -> ${route.branch}`);
+        if (headOid && remoteBranches.includes(`origin/${route.branch}`)) {
+          await addDecoration(`origin/${route.branch}`, `origin/${route.branch}`);
+          if (route.branch === 'master') {
+            await addDecoration(`origin/${route.branch}`, 'origin/HEAD');
+          }
+        }
+      }
+
+      return commitOids.size
+        ? commits.map((commit) => ({
+          ...commit,
+          decorations: decorationsByOid.get(commit.oid) || [],
+        }))
+        : commits;
     }
 
     function selectedRefForRoute(route) {
@@ -901,6 +941,7 @@
         ? await branchForCommit(repo.dir, branches, latestCommit?.oid || '')
         : '';
       const files = await git.listFiles({ fs, dir: repo.dir, ref: snapshotRef }).catch(() => []);
+      const decoratedCommits = await collectCommitDecorations(repo, localBranches, remoteBranches, route, commits.slice(0, 12).map(createCommitSummary));
       return {
         latest,
         latestCommit: latestCommit ? createCommitSummary(latestCommit) : null,
@@ -915,7 +956,7 @@
         resolvedRef,
         snapshotRef,
         branchForSelection,
-        commits: commits.slice(0, 12).map(createCommitSummary),
+        commits: decoratedCommits,
       };
     }
 
@@ -937,6 +978,7 @@
               tag: route?.tag || null,
               commit: commit.oid,
             });
+            const decorations = commit.decorations?.length ? ` <span class="muted small">(${escapeHtml(commit.decorations.join(', '))})</span>` : '';
             return `
               <a class="repo-commit-item" href="${href}">
                 <div class="repo-commit-top">
@@ -944,6 +986,7 @@
                   <span class="muted small">View commit</span>
                 </div>
                 <div class="repo-commit-summary">${escapeHtml(commit.summary)}</div>
+                ${decorations}
                 <div class="repo-commit-meta">${escapeHtml(commit.author)} · ${escapeHtml(commit.date)}</div>
               </a>
             `;
