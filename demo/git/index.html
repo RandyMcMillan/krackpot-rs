@@ -301,11 +301,17 @@
     function renderRepoCard(card) {
       return `
         <div class="repo">
-          <h3 class="row" style="gap:8px;align-items:center;">
-            <img src="${card.iconUrl}" alt="" width="16" height="16" loading="eager" fetchpriority="high" style="border-radius:3px;" />
-            <span>${card.repo.name}</span>
-          </h3>
-          <div class="small muted"><a href="${card.repo.url}" target="_blank" rel="noreferrer noopener">${card.repo.url}</a></div>
+          <div class="row" style="justify-content:space-between;align-items:center;gap:8px;">
+            <h3 class="row" style="gap:8px;align-items:center;margin:0;">
+              <a href="${card.repo.url}" target="_blank" rel="noreferrer noopener" aria-label="${card.repo.name} upstream">
+                <img src="${card.iconUrl}" alt="" width="16" height="16" loading="eager" fetchpriority="high" style="border-radius:3px;" />
+              </a>
+              <a href="${card.repo.url}" target="_blank" rel="noreferrer noopener">${card.repo.name}</a>
+            </h3>
+            <div class="small muted" style="text-align:right;">
+              <a href="${card.repo.url}" target="_blank" rel="noreferrer noopener">${card.repo.url}</a>
+            </div>
+          </div>
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${card.status}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${card.ref}</span></div>
           <div class="small" style="margin-top:4px;"><span class="muted">Selected:</span> <span class="mono">${escapeHtml(card.selectedRef)}</span></div>
