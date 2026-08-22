@@ -53,7 +53,12 @@
   .detail-grid { display:grid; grid-template-columns: 2fr 1fr; gap:14px; }
   .repo { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
   .repo h3 { margin-top:0; }
-  .status { padding:8px 10px; border-radius:6px; background:var(--status-bg); }
+  .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; background:var(--status-bg); }
+  .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
+  .status-idle { color: var(--muted); }
+  .status-checking { color: #f59e0b; }
+  .status-available { color: #22c55e; }
+  .status-unavailable { color: #ef4444; }
   .health-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:var(--status-bg); font-size:12px; line-height:1; white-space:nowrap; }
   .health-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
   .health-idle { color: var(--muted); }
@@ -84,7 +89,7 @@
     <div class="row">
       <button id="refreshBtn" type="button">Refresh repos</button>
       <a class="button" href="/"><span>Back to demo</span></a>
-      <span id="status" class="status">Starting...</span>
+      <span id="status" class="status status-idle" title="Starting..."><span class="status-dot"></span></span>
     </div>
   </div>
 
@@ -92,7 +97,7 @@
 
   <div class="sticky-footer">
     <div class="sticky-footer-inner small muted">
-      <span id="footerStatus">git viewer: starting...</span>
+      <span id="footerStatus" class="status status-idle" title="git viewer: starting..."><span class="status-dot"></span></span>
     </div>
   </div>
 
@@ -167,9 +172,11 @@
     const repoState = new Map();
     const refreshBtn = document.getElementById('refreshBtn');
 
-    function setStatus(text) {
-      statusEl.textContent = text;
-      footerStatusEl.textContent = `git viewer: ${text}`;
+    function setStatus(text, state = 'idle') {
+      statusEl.className = `status status-${state}`;
+      footerStatusEl.className = `status status-${state}`;
+      statusEl.title = text;
+      footerStatusEl.title = `git viewer: ${text}`;
     }
 
     function setRepoStatus(repoName, text) {
@@ -767,7 +774,7 @@
 
     async function refreshList() {
       try {
-        setStatus('loading repos...');
+        setStatus('loading repos...', 'checking');
         renderApp();
         const ensured = await Promise.allSettled(repos.map(ensureRepo));
         const readyRepos = repos.filter((_, index) => ensured[index].status === 'fulfilled');
@@ -784,9 +791,9 @@
         });
         renderApp(results);
         const readyCount = readyRepos.length;
-        setStatus(readyCount === repos.length ? 'ready' : `partial: ${readyCount}/${repos.length} repos ready`);
+        setStatus(readyCount === repos.length ? 'ready' : `partial: ${readyCount}/${repos.length} repos ready`, readyCount === repos.length ? 'available' : 'checking');
       } catch (e) {
-        setStatus(`unavailable: ${e.message}`);
+        setStatus(`unavailable: ${e.message}`, 'unavailable');
         console.warn('git viewer failed:', e);
       }
     }
@@ -797,7 +804,7 @@
         return;
       }
       try {
-        setStatus(`loading ${route.repo.name}...`);
+        setStatus(`loading ${route.repo.name}...`, 'checking');
         setRepoHealth(route.repo.name, 'checking');
         renderApp();
         const probe = probeRemoteHost(route.repo).catch(() => false);
@@ -807,10 +814,10 @@
         const available = await probe;
         setRepoHealth(route.repo.name, available ? 'available' : 'unavailable');
         renderApp(data);
-        setStatus('ready');
+        setStatus('ready', 'available');
       } catch (e) {
         setRepoHealth(route.repo.name, 'unavailable');
-        setStatus(`unavailable: ${e.message}`);
+        setStatus(`unavailable: ${e.message}`, 'unavailable');
         console.warn('git viewer failed:', e);
       }
     }
@@ -821,7 +828,7 @@
         await refreshDetail(route);
       } else if (route.repoName) {
         renderApp();
-        setStatus(`unknown repo: ${route.repoName}`);
+        setStatus(`unknown repo: ${route.repoName}`, 'unavailable');
       } else {
         await refreshList();
       }
