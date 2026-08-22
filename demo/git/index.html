@@ -147,6 +147,23 @@
       saveRepoCache(cache);
     }
 
+    function emptyRepoData() {
+      return {
+        latest: 'n/a',
+        files: [],
+        tags: [],
+        branches: [],
+        ref: 'n/a',
+      };
+    }
+
+    function buildSelectOptions(items, selectedValue, placeholder) {
+      const options = items.length
+        ? items.map((item) => `<option value="${item}" ${item === selectedValue ? 'selected' : ''}>${item}</option>`).join('')
+        : '<option value="">none</option>';
+      return `<option value="">${placeholder}</option>${options}`;
+    }
+
     async function pathExists(path) {
       try {
         await fs.promises.stat(path);
