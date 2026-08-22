@@ -578,7 +578,10 @@
 
     async function collectCommitDecorations(repo, localBranches, remoteBranches, route, commits) {
       const decorationsByOid = new Map();
-      const commitOids = new Map(commits.map((commit) => [commit.oid, commit]));
+      const branchNames = [...new Set([
+        ...localBranches,
+        ...remoteBranches.filter((name) => name && name !== 'HEAD'),
+      ])];
 
       async function addDecoration(ref, label) {
         try {
@@ -594,25 +597,27 @@
 
       await Promise.all([
         ...localBranches.map((branch) => addDecoration(branch, branch)),
-        ...remoteBranches.map((branch) => addDecoration(branch, branch)),
+        ...remoteBranches
+          .filter((branch) => branch && branch !== 'HEAD')
+          .map((branch) => addDecoration(`origin/${branch}`, `origin/${branch}`)),
       ]);
 
-      if (route?.branch) {
-        const headOid = await addDecoration(route.branch, `HEAD -> ${route.branch}`);
-        if (headOid && remoteBranches.includes(`origin/${route.branch}`)) {
-          await addDecoration(`origin/${route.branch}`, `origin/${route.branch}`);
-          if (route.branch === 'master') {
-            await addDecoration(`origin/${route.branch}`, 'origin/HEAD');
+      const headBranch = route?.branch || defaultRefForRefs(branchNames, []);
+      if (headBranch) {
+        const headOid = (await addDecoration(`origin/${headBranch}`, `HEAD -> ${headBranch}`))
+          || (await addDecoration(headBranch, `HEAD -> ${headBranch}`));
+        if (headOid && remoteBranches.includes(headBranch)) {
+          await addDecoration(`origin/${headBranch}`, `origin/${headBranch}`);
+          if (headBranch === 'master' || headBranch === 'main') {
+            await addDecoration(`origin/${headBranch}`, 'origin/HEAD');
           }
         }
       }
 
-      return commitOids.size
-        ? commits.map((commit) => ({
-          ...commit,
-          decorations: decorationsByOid.get(commit.oid) || [],
-        }))
-        : commits;
+      return commits.map((commit) => ({
+        ...commit,
+        decorations: decorationsByOid.get(commit.oid) || [],
+      }));
     }
 
     function selectedRefForRoute(route) {
@@ -642,9 +647,6 @@
     function fetchSelectionOptions(route) {
       if (route?.branch) {
         return { ref: route.branch, singleBranch: true };
-      }
-      if (route?.tag) {
-        return { ref: route.tag };
       }
       return {};
     }
