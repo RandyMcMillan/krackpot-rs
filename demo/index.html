@@ -52,6 +52,7 @@
   <div class="small muted" style="margin-top:6px;">Browser publisher sends federation ack events to public relays too.</div>
 
   <div class="panel">
+    <!-- Step 1: load the app and keep the DAG controls visible up front. -->
     <div class="row">
       <button id="resetBtn">Reset DAG</button>
       <button id="seedBtn">Create Genesis (all participants)</button>
@@ -63,10 +64,12 @@
   </div>
 
   <div class="panel">
+    <!-- Step 2: surface the quorum roster so profile state is always visible. -->
     <div id="profileStrip" class="profile-strip"></div>
   </div>
 
   <div class="grid">
+    <!-- Step 3: create new events and inspect the current DAG state. -->
     <form class="panel" id="createForm">
       <h3>New Event</h3>
       <div class="row" style="margin-bottom:8px;">
@@ -124,6 +127,7 @@
   </div>
 
   <script type="module">
+    // Step 4: import the WASM DAG and browser-only Nostr/libp2p helpers.
     import init, { WasmDag } from './pkg/nostr_dag.js';
     import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
     import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
@@ -135,6 +139,7 @@
     import { noise } from 'https://esm.sh/@chainsafe/libp2p-noise';
     import { yamux } from 'https://esm.sh/@chainsafe/libp2p-yamux';
 
+    // Step 5: define the relay set and durable browser cache keys.
     const RELAYS = [
       'wss://relay.damus.io',
       'wss://nos.lol',
@@ -170,6 +175,7 @@
     let libp2pPeerId = 'starting...';
     let libp2pModuleCounts = { loaded: 0, failed: 0, total: 0 };
 
+    // Step 6: bind the DOM nodes used by render() and the action handlers.
     const statusEl = document.getElementById('status');
     const authorEl = document.getElementById('author');
     const kindEl = document.getElementById('kind');
@@ -192,12 +198,15 @@
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
+    // Step 7: derive deterministic participant keys from stable names.
     async function sha256Bytes(value) {
       const encoded = new TextEncoder().encode(value);
       const digest = await crypto.subtle.digest('SHA-256', encoded);
       return new Uint8Array(digest);
     }
 
+    // Step 8: normalize profile metadata into the shape the UI and relay
+    // events expect.
     function createParticipantProfile({
       name,
       displayName,
@@ -222,6 +231,7 @@
       };
     }
 
+    // Step 9: build public profile/event links used in the detail cards.
     function njumpUrlForEvent(eventId) {
       return `https://njump.me/${neventEncode({ id: eventId })}`;
     }
@@ -247,6 +257,7 @@
       return `https://njump.me/image/${neventEncode({ id: eventId })}?v=${Date.now()}`;
     }
 
+    // Step 10: lazily probe njump so the UI can show optional deep links.
     function scheduleNjumpPolling() {
       if (njumpPollTimer) return;
       njumpPollTimer = window.setInterval(() => {
@@ -271,6 +282,7 @@
       }
     }
 
+    // Step 11: keep profile sources warm without blocking the main workflow.
     async function warmParticipantProfiles() {
       if (profilePollInFlight || participants.length === 0) return;
       profilePollInFlight = true;
@@ -323,6 +335,7 @@
       scheduleNjumpPolling();
     }
 
+    // Step 12: centralize status updates so the footer and badges stay in sync.
     function setStatus(message, ok = true) {
       statusEl.textContent = message;
       statusEl.className = `status ${ok ? 'ok' : 'err'}`;
@@ -354,6 +367,7 @@
     }
     window.__setLibp2pModuleCounts = setLibp2pModuleCounts;
 
+    // Step 13: start the optional libp2p node after the page is usable.
     async function initLibp2pNode() {
       try {
         const node = await createLibp2p({
@@ -392,6 +406,7 @@
       }, 750);
     }
 
+    // Step 14: persist the current demo state to localStorage.
     function persistCache() {
       try {
         const payload = {
@@ -416,6 +431,7 @@
       }
     }
 
+    // Step 15: restore the last saved demo state when the page reloads.
     function restoreCache() {
       try {
         const raw = window.localStorage.getItem(CACHE_KEY);
@@ -573,6 +589,7 @@
       return found;
     }
 
+    // Step 16: learn about quorum members and relays from incoming events.
     function discoverFromEvent(event) {
       if (event.kind === 10002) {
         for (const tag of event.tags) {
@@ -626,6 +643,7 @@
       }
     }
 
+    // Step 17: subscribe once to the relay metadata feeds and start polling.
     function startRelayDiscovery() {
       if (relayDiscoveryStarted) return;
       relayDiscoveryStarted = true;
@@ -682,6 +700,7 @@
       );
     }
 
+    // Step 18: seed the fixed five-participant quorum used by the demo.
     async function initParticipants() {
       participants = await Promise.all(Array.from({ length: FED_COUNT }, async (_, i) => {
         const name = PARTICIPANT_NAMES[i] || `participant${i + 1}`;
@@ -715,6 +734,7 @@
         .join('');
     }
 
+    // Step 19: reset the DAG model and repopulate the local UI state.
     async function resetDag() {
       await initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
@@ -789,6 +809,7 @@
       return currentTips();
     }
 
+    // Step 20: create a signed event with the requested parent set.
     function buildEvent(author, kind, content, parentIds) {
       const tags = parentIds.map((id) => ['e', id]);
       const event = {
@@ -801,6 +822,7 @@
       return finalizeEvent(event, author.sk);
     }
 
+    // Step 21: insert events into the WASM DAG and mirror them into UI state.
     function insertEvent(event) {
       const result = JSON.parse(dag.insert(JSON.stringify(event)));
       if (result.type === 'Duplicate') {
@@ -819,6 +841,7 @@
       scheduleCachePersist();
     }
 
+    // Step 22: serialize relay publishing so the demo stays predictable.
     function queueBroadcast(eventsToPublish, successLabel) {
       return new Promise((resolve) => {
         broadcastQueue.push({ eventsToPublish, successLabel, resolve });
@@ -960,6 +983,7 @@
       }
     }
 
+    // Step 23: publish the bootstrap quorum metadata and make it canonical.
     async function publishProfiles() {
       const seeded = createGenesisEvents();
       const participantPubkeys = participants.map((participant) => participant.pk);
@@ -983,6 +1007,7 @@
       ]);
     }
 
+    // Step 24: render the entire dashboard from the current in-memory state.
     function render() {
       const canonical = canonicalSet();
       const tips = currentTips();
@@ -1133,6 +1158,7 @@
     </div>
   </footer>
   <script type="module">
+    // Step 25: preload libp2p modules so the footer can report availability.
     const modules = [
       ['libp2p', 'https://esm.sh/libp2p'],
       ['@libp2p/interface', 'https://esm.sh/@libp2p/interface'],
@@ -1185,6 +1211,7 @@
     window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
   </script>
   <script type="module">
+    // Step 26: stage the Git viewer example clone and fetch workflow.
     import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
     import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
@@ -1260,6 +1287,7 @@
     void runGitWorkflow();
   </script>
   <script type="module">
+    // Step 27: opportunistically cache shared dependencies for offline-ish reuse.
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
 
     const depsFooterStatusEl = document.getElementById('depsFooterStatus');
