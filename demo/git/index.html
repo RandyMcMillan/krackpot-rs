@@ -378,7 +378,7 @@
           </div>
           <div class="row" style="margin-top:12px; justify-content:flex-end;">
             <button class="repo-refresh" type="button" data-refresh-repo="${card.toolbar.refreshId}">Refresh</button>
-            <a class="button" href="${card.toolbar.secondaryHref}">${card.toolbar.secondaryLabel}</a>
+            <button class="button" type="button" data-view-repo="${card.toolbar.refreshId}">${card.toolbar.secondaryLabel}</button>
             <a class="button" href="${card.toolbar.primaryHref}" target="_blank" rel="noreferrer noopener">${card.toolbar.primaryLabel}</a>
           </div>
         </div>
@@ -704,6 +704,23 @@
       reposEl.querySelectorAll('[data-refresh-repo]').forEach((button) => {
         button.addEventListener('click', () => {
           void refreshOneRepo(button.getAttribute('data-refresh-repo'));
+        });
+      });
+      reposEl.querySelectorAll('[data-view-repo]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const repoName = button.getAttribute('data-view-repo');
+          const repo = repos.find((entry) => entry.name === repoName);
+          if (!repo) return;
+          const branchSelect = reposEl.querySelector(`[data-branch-select="${repo.name}"]`);
+          const tagSelect = reposEl.querySelector(`[data-tag-select="${repo.name}"]`);
+          const nextRoute = {
+            repo,
+            repoName: repo.name,
+            branch: branchSelect && branchSelect.value ? branchSelect.value : null,
+            tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+          };
+          window.history.pushState({}, '', repoSelectionHref(repo, nextRoute));
+          await refreshDetail(nextRoute);
         });
       });
       reposEl.querySelectorAll('[data-branch-select], [data-tag-select]').forEach((select) => {
