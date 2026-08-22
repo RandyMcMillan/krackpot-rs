@@ -55,6 +55,37 @@
   .detail-grid { display:grid; grid-template-columns: 2fr 1fr; gap:14px; }
   .repo { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
   .repo h3 { margin-top:0; }
+  .repo-page { display:grid; gap:14px; }
+  .repo-hero { border:1px solid var(--border); border-radius:8px; background:var(--panel); padding:16px; }
+  .repo-breadcrumbs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; color:var(--muted); font-size:12px; }
+  .repo-breadcrumbs a { color:inherit; text-decoration:none; }
+  .repo-breadcrumbs a:hover { color:var(--accent); }
+  .repo-title-row { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-top:8px; }
+  .repo-title { display:flex; flex-direction:column; gap:4px; }
+  .repo-title h2 { margin:0; font-size:28px; line-height:1.15; }
+  .repo-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .repo-tabs { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-top:14px; }
+  .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:2px solid transparent; color:var(--muted); text-decoration:none; }
+  .repo-tab.active { color:var(--fg); border-bottom-color:var(--accent); font-weight:600; }
+  .repo-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; }
+  .repo-toolbar .spacer { flex:1 1 auto; }
+  .repo-select { min-width:220px; }
+  .repo-layout { display:grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap:14px; align-items:start; margin-top:14px; }
+  .repo-sidebar { display:grid; gap:14px; }
+  .repo-sidebar-card { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
+  .repo-files { border:1px solid var(--border); border-radius:8px; background:var(--surface); overflow:hidden; }
+  .repo-files-header, .repo-files-row { display:grid; grid-template-columns: 1fr 140px 180px; gap:10px; align-items:center; padding:10px 12px; }
+  .repo-files-header { background:var(--status-bg); color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
+  .repo-files-row { border-top:1px solid var(--border); text-decoration:none; color:inherit; }
+  .repo-files-row:hover { background:rgba(124,58,237,.08); }
+  .repo-files-name { display:flex; align-items:center; gap:8px; min-width:0; }
+  .repo-files-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .repo-files-empty { padding:16px; }
+  .repo-commit-list { display:grid; gap:10px; }
+  .repo-commit-item { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
+  .repo-commit-top { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .repo-commit-summary { margin-top:6px; font-weight:500; }
+  .repo-commit-meta { margin-top:6px; color:var(--muted); font-size:12px; }
   .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; background:var(--status-bg); }
   .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
   .status-idle { color: var(--muted); }
@@ -703,11 +734,30 @@
 
     function renderFileList(files) {
       if (!files.length) {
-        return '<div class="detail-empty muted">No files found for this ref.</div>';
+        return '<div class="repo-files-empty muted">No files found for this ref.</div>';
       }
-      return `<ul class="list">${files.map((file) => `
-        <li class="list-item mono">${escapeHtml(file)}</li>
-      `).join('')}</ul>`;
+      return `
+        <div class="repo-files">
+        <div class="repo-files-header">
+          <div>Name</div>
+          <div>Type</div>
+          <div>Path</div>
+        </div>
+        ${files.map((file) => {
+          const parts = file.split('/');
+          const name = parts[parts.length - 1] || file;
+          const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '.';
+          const ext = name.includes('.') ? name.split('.').pop() : 'file';
+          return `
+            <div class="repo-files-row mono">
+              <div class="repo-files-name"><span>📄</span><span>${escapeHtml(name)}</span></div>
+              <div>${escapeHtml(ext)}</div>
+              <div>${escapeHtml(folder)}</div>
+            </div>
+          `;
+        }).join('')}
+        </div>
+      `;
     }
 
     function renderRepoDetail(repo, data, route) {
@@ -722,71 +772,85 @@
       const currentCommit = data.latestCommit || null;
       const latestMessage = currentCommit ? currentCommit.summary : 'n/a';
       const commitCount = data.commits.length;
-      const detailSummary = `
-        <div class="row" style="justify-content:space-between; align-items:flex-start;">
-          <div>
-            <div class="muted small">Repository</div>
-            <div class="row" style="gap:10px; align-items:center; margin:4px 0 6px;">
-              <h2 style="margin:0;">${escapeHtml(repo.name)}</h2>
-              <span class="health-badge ${healthClass}"><span class="health-dot"></span></span>
-            </div>
-            <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
-          </div>
-          <div class="actions">
-            <button type="button" data-refresh-repo="${repo.name}">Refresh</button>
-            <a class="button" href="./">Back to repos</a>
-            <a class="button" href="${repo.url}" target="_blank" rel="noreferrer noopener">Open upstream</a>
-          </div>
-        </div>
-        <div class="row" style="margin-top:12px; gap:18px;">
-          <span class="pill">Ref: <span class="mono">${currentRef}</span></span>
-          <span class="pill">Files: ${data.files.length}</span>
-          <span class="pill">Commits: ${commitCount}</span>
-        </div>
-        <div class="small" style="margin-top:10px;">
-          <span class="muted">Latest:</span> <span class="mono">${escapeHtml(latestMessage)}</span>
-        </div>
-        ${currentCommit ? `
-          <div class="small" style="margin-top:6px;">
-            <span class="muted">Commit:</span> <span class="mono">${escapeHtml(currentCommit?.oid ? currentCommit.oid.slice(0, 12) : 'n/a')}</span>
-            <span class="muted">·</span> <span>${escapeHtml(currentCommit.author)}</span>
-            <span class="muted">·</span> <span>${escapeHtml(currentCommit.date)}</span>
-          </div>
-        ` : ''}
-      `;
-
       return `
-        <div class="detail-shell">
-          ${detailSummary}
-          <div class="row" style="margin-top:12px;">
-            <div style="min-width:240px; flex:1;">
-              <div class="muted">Branches</div>
-              <select data-branch-select="${repo.name}" style="width:100%; margin-top:6px;">
-                ${buildSelectOptions(data.branches, branchSelected, 'Quick jump branch')}
-              </select>
+        <div class="repo-page">
+          <div class="repo-hero">
+            <div class="repo-breadcrumbs">
+              <a href="./">repos</a>
+              <span>/</span>
+              <span class="mono">${escapeHtml(repo.name)}</span>
             </div>
-            <div style="min-width:240px; flex:1;">
-              <div class="muted">Tags</div>
-              <select data-tag-select="${repo.name}" style="width:100%; margin-top:6px;">
-                ${buildSelectOptions(data.tags, tagSelected, 'Quick jump tag')}
-              </select>
+            <div class="repo-title-row">
+              <div class="repo-title">
+                <div class="repo-meta">
+                  <h2>${escapeHtml(repo.name)}</h2>
+                  <span class="health-badge ${healthClass}"><span class="health-dot"></span></span>
+                </div>
+                <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
+                <div class="repo-meta">
+                  <span class="pill">Ref: <span class="mono">${currentRef}</span></span>
+                  <span class="pill">Files: ${data.files.length}</span>
+                  <span class="pill">Commits: ${commitCount}</span>
+                </div>
+              </div>
+              <div class="actions">
+                <button type="button" data-refresh-repo="${repo.name}">Refresh</button>
+                <a class="button" href="./">Back to repos</a>
+                <a class="button" href="${repo.url}" target="_blank" rel="noreferrer noopener">Open upstream</a>
+              </div>
+            </div>
+            <div class="repo-tabs" role="tablist" aria-label="Repository sections">
+              <a class="repo-tab active" href="${repoSelectionHref(repo, route)}">Code</a>
+              <a class="repo-tab" href="${repo.url}" target="_blank" rel="noreferrer noopener">Upstream</a>
+              <span class="repo-tab">Latest: ${escapeHtml(latestMessage.slice(0, 40))}</span>
             </div>
           </div>
-        </div>
-        <div class="detail-grid" style="margin-top:14px;">
-          <div class="detail-shell">
-            <div class="row" style="justify-content:space-between; align-items:center;">
-              <h3 style="margin:0;">Files at <span class="mono">${currentRef}</span></h3>
-              <span class="muted small">${data.files.length} entries</span>
-            </div>
-            <div style="margin-top:10px;">${renderFileList(data.files)}</div>
+
+          <div class="repo-toolbar">
+            <select class="repo-select" data-branch-select="${repo.name}">
+              ${buildSelectOptions(data.branches, branchSelected, 'Switch branch')}
+            </select>
+            <select class="repo-select" data-tag-select="${repo.name}">
+              ${buildSelectOptions(data.tags, tagSelected, 'Switch tag')}
+            </select>
+            <div class="spacer"></div>
+            ${currentCommit ? `
+              <div class="muted small">Latest commit <span class="mono">${escapeHtml(currentCommit.oid ? currentCommit.oid.slice(0, 12) : 'n/a')}</span></div>
+            ` : ''}
           </div>
-          <div class="detail-shell">
-            <div class="row" style="justify-content:space-between; align-items:center;">
-              <h3 style="margin:0;">Recent commits</h3>
-              <span class="muted small">${commitCount} loaded</span>
+
+          <div class="repo-layout">
+            <div class="repo-main">
+              <div class="repo-sidebar-card">
+                <div class="row" style="justify-content:space-between; align-items:center;">
+                  <h3 style="margin:0;">Files</h3>
+                  <span class="muted small">${data.files.length} entries</span>
+                </div>
+                <div style="margin-top:10px;">${renderFileList(data.files)}</div>
+              </div>
+              <div class="repo-sidebar-card" style="margin-top:14px;">
+                <div class="row" style="justify-content:space-between; align-items:center;">
+                  <h3 style="margin:0;">Recent commits</h3>
+                  <span class="muted small">${commitCount} loaded</span>
+                </div>
+                <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
+              </div>
             </div>
-            <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
+            <aside class="repo-sidebar">
+              <div class="repo-sidebar-card">
+                <div class="muted small">About</div>
+                <div style="margin-top:8px;">Static browser clone of <span class="mono">${escapeHtml(repo.name)}</span>.</div>
+                <div class="small muted" style="margin-top:10px;">Commit: <span class="mono">${escapeHtml(currentCommit?.oid ? currentCommit.oid.slice(0, 12) : 'n/a')}</span></div>
+                <div class="small muted" style="margin-top:4px;">Author: ${escapeHtml(currentCommit?.author || 'n/a')}</div>
+                <div class="small muted" style="margin-top:4px;">Date: ${escapeHtml(currentCommit?.date || 'n/a')}</div>
+              </div>
+              <div class="repo-sidebar-card">
+                <div class="muted small">Stats</div>
+                <div class="small" style="margin-top:8px;"><span class="muted">Branches:</span> ${data.branches.length}</div>
+                <div class="small"><span class="muted">Tags:</span> ${data.tags.length}</div>
+                <div class="small"><span class="muted">Selected ref:</span> <span class="mono">${escapeHtml(data.selectedRef || 'n/a')}</span></div>
+              </div>
+            </aside>
           </div>
         </div>
       `;
