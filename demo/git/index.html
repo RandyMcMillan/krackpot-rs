@@ -506,6 +506,49 @@
       return {};
     }
 
+    const gitProgressState = new Map();
+
+    function summarizeGitProgress(progress) {
+      if (!progress || typeof progress !== 'object') {
+        return { text: '', phase: '', percent: null };
+      }
+      const phase = String(progress.phase || progress.message || progress.status || progress.stage || '').trim();
+      const loaded = Number(progress.loaded ?? progress.completed ?? progress.current);
+      const total = Number(progress.total ?? progress.length ?? progress.expected);
+      let percent = null;
+      let counts = '';
+      if (Number.isFinite(loaded) && Number.isFinite(total) && total > 0) {
+        percent = Math.min(100, Math.max(0, Math.floor((loaded / total) * 100)));
+        counts = `${loaded}/${total} (${percent}%)`;
+      } else if (Number.isFinite(loaded) && Number.isFinite(total)) {
+        counts = `${loaded}/${total}`;
+      } else if (Number.isFinite(loaded)) {
+        counts = `${loaded}`;
+      }
+      const text = [phase, counts].filter(Boolean).join(' ');
+      return { text: text || 'progress', phase, percent };
+    }
+
+    function logGitProgress(repo, operation, progress, done = false) {
+      const info = summarizeGitProgress(progress);
+      const key = `${repo.name}:${operation}`;
+      const bucket = info.percent === null ? null : Math.floor(info.percent / 5);
+      const signature = `${info.phase}|${bucket}|${info.text}`;
+      const previous = gitProgressState.get(key) || {};
+      if (!done && previous.signature === signature) {
+        return;
+      }
+      if (!done && bucket !== null && previous.bucket === bucket && previous.phase === info.phase) {
+        return;
+      }
+      gitProgressState.set(key, { signature, bucket, phase: info.phase });
+      footer.log('git', `${repo.name} ${operation}${done ? ' complete' : `: ${info.text}`}`, 'trace');
+    }
+
+    function createGitProgressHandler(repo, operation) {
+      return (progress) => logGitProgress(repo, operation, progress);
+    }
+
     async function ensureRepo(repo, route = null) {
       const url = repo.url;
       const dir = repo.dir;
@@ -514,6 +557,7 @@
         const exists = await pathExists(dir);
         if (!exists) {
           setRepoStatus(repo.name, 'cloning...');
+          footer.log('git', `${repo.name} cloning`, 'trace');
           await ensureDir(dir);
           await git.clone({
             fs,
@@ -523,9 +567,12 @@
             url,
             singleBranch: true,
             depth: 1,
+            onProgress: createGitProgressHandler(repo, 'clone'),
           });
+          logGitProgress(repo, 'clone', { phase: 'done' }, true);
         } else {
           setRepoStatus(repo.name, 'reusing cached clone...');
+          footer.log('git', `${repo.name} reusing cached clone`, 'trace');
         }
       } catch (e) {
         setRepoStatus(repo.name, `prepare failed: ${e.message}`);
@@ -533,11 +580,13 @@
       }
 
       setRepoStatus(repo.name, 'fetching tags...');
-      await fetchRepoRefs(repo, route).catch(() => {});
+      footer.log('git', `${repo.name} fetching tags`, 'trace');
+      await fetchRepoRefs(repo, route, createGitProgressHandler(repo, 'fetch')).catch(() => {});
+      logGitProgress(repo, 'fetch', { phase: 'done' }, true);
       setRepoStatus(repo.name, 'ready');
     }
 
-    async function fetchRepoRefs(repo, route = null) {
+    async function fetchRepoRefs(repo, route = null, onProgress = null) {
       const selection = fetchSelectionOptions(route);
       await git.fetch({
         fs,
@@ -547,6 +596,7 @@
         url: repo.url,
         all: true,
         tags: true,
+        onProgress,
         ...selection,
       });
     }
