@@ -147,6 +147,12 @@
         latest: data.latest || 'n/a',
         tags: tagItems,
         files: fileItems,
+        toolbar: {
+          primaryHref: repo.url,
+          primaryLabel: 'Open upstream',
+          secondaryHref: `${window.location.pathname}?repo=${encodeURIComponent(repo.name)}`,
+          secondaryLabel: 'Open details',
+        },
       };
     }
 
@@ -166,6 +172,10 @@
           <ul>
             ${card.files}
           </ul>
+          <div class="row" style="margin-top:12px; justify-content:flex-end;">
+            <a class="button" href="${card.toolbar.secondaryHref}">${card.toolbar.secondaryLabel}</a>
+            <a class="button" href="${card.toolbar.primaryHref}" target="_blank" rel="noreferrer noopener">${card.toolbar.primaryLabel}</a>
+          </div>
         </div>
       `;
     }
