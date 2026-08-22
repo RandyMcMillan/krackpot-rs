@@ -148,6 +148,7 @@
         tags: tagItems,
         files: fileItems,
         toolbar: {
+          refreshId: repo.name,
           primaryHref: repo.url,
           primaryLabel: 'Open upstream',
           secondaryHref: `${window.location.pathname}?repo=${encodeURIComponent(repo.name)}`,
@@ -173,6 +174,7 @@
             ${card.files}
           </ul>
           <div class="row" style="margin-top:12px; justify-content:flex-end;">
+            <button class="repo-refresh" type="button" data-refresh-repo="${card.toolbar.refreshId}">Refresh</button>
             <a class="button" href="${card.toolbar.secondaryHref}">${card.toolbar.secondaryLabel}</a>
             <a class="button" href="${card.toolbar.primaryHref}" target="_blank" rel="noreferrer noopener">${card.toolbar.primaryLabel}</a>
           </div>
