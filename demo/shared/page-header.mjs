@@ -20,13 +20,14 @@ export function createSharedHeader(root, options = {}) {
 
   const title = options.title || 'nostr-dag';
   const subtitleHtml = options.subtitleHtml || '';
+  const logoHref = options.logoHref || '#';
   const navItems = Array.isArray(options.navItems) ? options.navItems : [];
 
   root.classList.add('sticky-header');
   root.innerHTML = `
     <div class="header-container">
       <div>
-        <div class="logo">${escapeHtml(title)}</div>
+        <a class="logo" href="${escapeHtml(logoHref)}">${escapeHtml(title)}</a>
         ${subtitleHtml ? `<div class="muted header-subtitle">${subtitleHtml}</div>` : ''}
       </div>
       ${navItems.length ? `
@@ -37,11 +38,7 @@ export function createSharedHeader(root, options = {}) {
                 const label = escapeHtml(item.label || '');
                 const href = escapeHtml(item.href || '#');
                 const current = item.current ? ' aria-current="page"' : '';
-                return `<li>${
-                  item.current
-                    ? `<span class="nav-link current"${current}>${label}</span>`
-                    : `<a href="${href}"${current}>${label}</a>`
-                }</li>`;
+                return `<li><a class="nav-link${item.current ? ' current' : ''}" href="${href}"${current}>${label}</a></li>`;
               })
               .join('')}
           </ul>
