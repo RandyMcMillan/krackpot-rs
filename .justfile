@@ -7,7 +7,14 @@ build:
     CARGO_TARGET_DIR=target cargo build --features native
 
 test:
+    just test-native
+    just test-js
+
+test-native:
     CARGO_TARGET_DIR=target cargo test --features native
+
+test-js:
+    node --test test/*.test.mjs
 
 build-relay:
     CARGO_TARGET_DIR=target cargo build --release --bin relay --bin federation --features relay
@@ -22,7 +29,7 @@ site: wasm
     mkdir -p site
     cp demo/index.html site/index.html
     mkdir -p site/shared
-    cp demo/shared/*.js site/shared/
+    cp demo/shared/*.js demo/shared/*.mjs site/shared/
     mkdir -p site/git
     cp demo/git/index.html site/git/index.html
 

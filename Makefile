@@ -6,13 +6,15 @@ GH ?= gh
 BRANCH ?= $(shell git branch --show-current)
 CARGO_TARGET_DIR ?= target
 
-.PHONY: help build test build-relay build-server wasm site demo server clean deploy
+.PHONY: help build test test-native test-js build-relay build-server wasm site demo server clean deploy
 
 help:
 	@printf '%s\n' \
 		'Targets:' \
 		'  build       Build native library/binaries' \
-		'  test        Run native tests' \
+		'  test        Run all tests' \
+		'  test-native Run native tests' \
+		'  test-js     Run JS tests' \
 		'  build-relay Build relay + federation release binaries' \
 		'  build-server Build the nostr-dag server binary' \
 		'  wasm        Build the WASM package into site/pkg' \
@@ -25,8 +27,13 @@ help:
 build:
 	CARGO_TARGET_DIR=$(CARGO_TARGET_DIR) $(CARGO) build --features native
 
-test:
+test: test-native test-js
+
+test-native:
 	CARGO_TARGET_DIR=$(CARGO_TARGET_DIR) $(CARGO) test --features native
+
+test-js:
+	node --test test/*.test.mjs
 
 build-relay:
 	CARGO_TARGET_DIR=$(CARGO_TARGET_DIR) $(CARGO) build --release --bin relay --bin federation --features relay
@@ -41,7 +48,7 @@ site: wasm
 	mkdir -p site
 	cp demo/index.html site/index.html
 	mkdir -p site/shared
-	cp demo/shared/*.js site/shared/
+	cp demo/shared/*.js demo/shared/*.mjs site/shared/
 	mkdir -p site/git
 	cp demo/git/index.html site/git/index.html
 

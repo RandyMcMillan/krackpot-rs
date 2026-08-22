@@ -115,6 +115,7 @@
   <script type="module">
     import { createLoggerFooter } from '../shared/logger-footer.js';
     import { resolveHref } from '../shared/page-path.js';
+    import { createGitProgressReporter } from '../shared/git-progress.mjs';
     import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
     import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
@@ -506,47 +507,14 @@
       return {};
     }
 
-    const gitProgressState = new Map();
+    const gitProgressReporters = new Map();
 
-    function summarizeGitProgress(progress) {
-      if (!progress || typeof progress !== 'object') {
-        return { text: '', phase: '', percent: null };
-      }
-      const phase = String(progress.phase || progress.message || progress.status || progress.stage || '').trim();
-      const loaded = Number(progress.loaded ?? progress.completed ?? progress.current);
-      const total = Number(progress.total ?? progress.length ?? progress.expected);
-      let percent = null;
-      let counts = '';
-      if (Number.isFinite(loaded) && Number.isFinite(total) && total > 0) {
-        percent = Math.min(100, Math.max(0, Math.floor((loaded / total) * 100)));
-        counts = `${loaded}/${total} (${percent}%)`;
-      } else if (Number.isFinite(loaded) && Number.isFinite(total)) {
-        counts = `${loaded}/${total}`;
-      } else if (Number.isFinite(loaded)) {
-        counts = `${loaded}`;
-      }
-      const text = [phase, counts].filter(Boolean).join(' ');
-      return { text: text || 'progress', phase, percent };
-    }
-
-    function logGitProgress(repo, operation, progress, done = false) {
-      const info = summarizeGitProgress(progress);
+    function getGitProgressReporter(repo, operation) {
       const key = `${repo.name}:${operation}`;
-      const bucket = info.percent === null ? null : Math.floor(info.percent / 5);
-      const signature = `${info.phase}|${bucket}|${info.text}`;
-      const previous = gitProgressState.get(key) || {};
-      if (!done && previous.signature === signature) {
-        return;
+      if (!gitProgressReporters.has(key)) {
+        gitProgressReporters.set(key, createGitProgressReporter(repo.name, operation));
       }
-      if (!done && bucket !== null && previous.bucket === bucket && previous.phase === info.phase) {
-        return;
-      }
-      gitProgressState.set(key, { signature, bucket, phase: info.phase });
-      footer.log('git', `${repo.name} ${operation}${done ? ' complete' : `: ${info.text}`}`, 'trace');
-    }
-
-    function createGitProgressHandler(repo, operation) {
-      return (progress) => logGitProgress(repo, operation, progress);
+      return gitProgressReporters.get(key);
     }
 
     async function ensureRepo(repo, route = null) {
@@ -567,9 +535,13 @@
             url,
             singleBranch: true,
             depth: 1,
-            onProgress: createGitProgressHandler(repo, 'clone'),
+            onProgress: (progress) => {
+              const message = getGitProgressReporter(repo, 'clone')(progress);
+              if (message) {
+                footer.log('git', message, 'trace');
+              }
+            },
           });
-          logGitProgress(repo, 'clone', { phase: 'done' }, true);
         } else {
           setRepoStatus(repo.name, 'reusing cached clone...');
           footer.log('git', `${repo.name} reusing cached clone`, 'trace');
@@ -581,8 +553,12 @@
 
       setRepoStatus(repo.name, 'fetching tags...');
       footer.log('git', `${repo.name} fetching tags`, 'trace');
-      await fetchRepoRefs(repo, route, createGitProgressHandler(repo, 'fetch')).catch(() => {});
-      logGitProgress(repo, 'fetch', { phase: 'done' }, true);
+      await fetchRepoRefs(repo, route, (progress) => {
+        const message = getGitProgressReporter(repo, 'fetch')(progress);
+        if (message) {
+          footer.log('git', message, 'trace');
+        }
+      }).catch(() => {});
       setRepoStatus(repo.name, 'ready');
     }
 

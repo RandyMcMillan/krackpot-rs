@@ -50,6 +50,8 @@ The Git viewer now supports a repo detail view on the same static page:
 
 This stays on the static `/git/` route so it works with the local file server and Safari without requiring deep-link rewrites.
 
+The shared logger now surfaces `isomorphic-git` clone/fetch progress at trace level, and `test/git-progress.test.mjs` locks the progress text and dedupe behavior in place.
+
 ## Project structure
 
 - `src/dag.rs` - Core DAG with pending event buffering
