@@ -563,6 +563,10 @@
       return defaultRefForRefs(branches, tags);
     }
 
+    function estimateRecentCommitLimit(fileCount) {
+      return Math.max(1, Math.round(Math.max(1, fileCount) / 5.0));
+    }
+
     async function branchForCommit(repoDir, branches, commitOid) {
       if (!commitOid || !branches.length) return '';
       const matches = await Promise.all(branches.map(async (branch) => {
@@ -943,7 +947,7 @@
         ? await branchForCommit(repo.dir, branches, latestCommit?.oid || '')
         : '';
       const files = await git.listFiles({ fs, dir: repo.dir, ref: snapshotRef }).catch(() => []);
-      const commitLimit = files.length;
+      const commitLimit = estimateRecentCommitLimit(files.length);
       const decoratedCommits = await collectCommitDecorations(repo, localBranches, remoteBranches, route, commits.slice(0, commitLimit).map(createCommitSummary));
       return {
         latest,
