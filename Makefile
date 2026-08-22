@@ -59,8 +59,7 @@ site: wasm
 demo:
 	./demo/run.sh
 
-server: site
-	$(MAKE) build-server site
+server: build-server site
 	CARGO_TARGET_DIR=$(CARGO_TARGET_DIR) $(CARGO) run --bin nostr-dag-server --features native
 
 clean:
