@@ -10,6 +10,10 @@ test:
     just test-native
     just test-js
 
+test-all:
+    just test-native
+    just test-js
+
 test-native:
     CARGO_TARGET_DIR=target cargo test --features native
 

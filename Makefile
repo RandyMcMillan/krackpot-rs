@@ -6,13 +6,14 @@ GH ?= gh
 BRANCH ?= $(shell git branch --show-current)
 CARGO_TARGET_DIR ?= target
 
-.PHONY: help build test test-native test-js build-relay build-server wasm site demo server clean deploy
+.PHONY: help build test test-all test-native test-js build-relay build-server wasm site demo server clean deploy
 
 help:
 	@printf '%s\n' \
 		'Targets:' \
 		'  build       Build native library/binaries' \
 		'  test        Run all tests' \
+		'  test-all    Run all tests' \
 		'  test-native Run native tests' \
 		'  test-js     Run JS tests' \
 		'  build-relay Build relay + federation release binaries' \
@@ -28,6 +29,8 @@ build:
 	CARGO_TARGET_DIR=$(CARGO_TARGET_DIR) $(CARGO) build --features native
 
 test: test-native test-js
+
+test-all: test-native test-js
 
 test-native:
 	CARGO_TARGET_DIR=$(CARGO_TARGET_DIR) $(CARGO) test --features native
