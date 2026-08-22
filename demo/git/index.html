@@ -1398,6 +1398,9 @@
           : [...repos];
         const dataByRepo = new Map();
         for (const repo of orderedRepos) {
+          if (getRouteContext().repo) {
+            break;
+          }
           const repoRoute = route.repo && repo.name === route.repo.name ? route : null;
           try {
             footer.log('git', `probing ${repo.name}`, 'trace');
