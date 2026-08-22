@@ -54,6 +54,12 @@
   .repo { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
   .repo h3 { margin-top:0; }
   .status { padding:8px 10px; border-radius:6px; background:var(--status-bg); }
+  .health-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:var(--status-bg); font-size:12px; line-height:1; white-space:nowrap; }
+  .health-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
+  .health-idle { color: var(--muted); }
+  .health-checking { color: #f59e0b; }
+  .health-available { color: #22c55e; }
+  .health-unavailable { color: #ef4444; }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
   .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--status-bg); }
   .list { list-style:none; padding:0; margin:0; }
@@ -97,6 +103,7 @@
 
     const fs = new LightningFS('git-viewer');
     const REPO_CACHE_KEY = 'nostr-dag-git-repo-cache-v1';
+    const repoHealth = new Map();
     const repos = [
       {
         name: 'nostr-dag',
@@ -167,6 +174,47 @@
 
     function setRepoStatus(repoName, text) {
       repoState.set(repoName, text);
+    }
+
+    function setRepoHealth(repoName, state) {
+      repoHealth.set(repoName, state);
+    }
+
+    function getRepoHealth(repoName) {
+      return repoHealth.get(repoName) || 'idle';
+    }
+
+    function repoHealthLabel(state) {
+      return '';
+    }
+
+    function repoHealthClass(state) {
+      if (state === 'checking') return 'health-checking';
+      if (state === 'available') return 'health-available';
+      if (state === 'unavailable') return 'health-unavailable';
+      return 'health-idle';
+    }
+
+    function remoteProbeUrl(repo) {
+      return `${new URL(repo.url).origin}/favicon.ico`;
+    }
+
+    async function probeRemoteHost(repo) {
+      const controller = new AbortController();
+      const timeout = window.setTimeout(() => controller.abort(), 8000);
+      try {
+        await fetch(remoteProbeUrl(repo), {
+          method: 'GET',
+          mode: 'no-cors',
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        return true;
+      } catch {
+        return false;
+      } finally {
+        window.clearTimeout(timeout);
+      }
       renderApp();
     }
 
@@ -537,6 +585,9 @@
         : (route.tag ? (data.branchForSelection || '') : (data.branches.includes(data.selectedRef) ? data.selectedRef : ''));
       const tagSelected = route.tag && data.tags.includes(route.tag) ? route.tag : (data.tags.includes(data.selectedRef) ? data.selectedRef : '');
       const currentRef = escapeHtml(data.resolvedRef || data.selectedRef || data.ref || 'n/a');
+      const healthState = getRepoHealth(repo.name);
+      const healthClass = repoHealthClass(healthState);
+      const healthText = repoHealthLabel(healthState);
       const currentCommit = data.latestCommit || null;
       const latestMessage = currentCommit ? currentCommit.summary : 'n/a';
       const commitCount = data.commits.length;
@@ -544,7 +595,10 @@
         <div class="row" style="justify-content:space-between; align-items:flex-start;">
           <div>
             <div class="muted small">Repository</div>
-            <h2 style="margin:4px 0 6px;">${escapeHtml(repo.name)}</h2>
+            <div class="row" style="gap:10px; align-items:center; margin:4px 0 6px;">
+              <h2 style="margin:0;">${escapeHtml(repo.name)}</h2>
+              <span class="health-badge ${healthClass}"><span class="health-dot"></span></span>
+            </div>
             <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
           </div>
           <div class="actions">
@@ -554,7 +608,6 @@
           </div>
         </div>
         <div class="row" style="margin-top:12px; gap:18px;">
-          <span class="pill">Status: ${escapeHtml(repoState.get(repo.name) || 'idle')}</span>
           <span class="pill">Ref: <span class="mono">${currentRef}</span></span>
           <span class="pill">Files: ${data.files.length}</span>
           <span class="pill">Commits: ${commitCount}</span>
@@ -674,16 +727,25 @@
     async function refreshOneRepo(repoName) {
       const repo = repos.find((entry) => entry.name === repoName);
       if (!repo) return;
-      setRepoStatus(repo.name, 'refreshing...');
       const route = getRouteContext().repo?.name === repo.name ? getRouteContext() : null;
-      await ensureRepo(repo, route);
-      const data = await readRepo(repo, route);
-      cacheRepoData(repo.name, data);
-      renderApp(repos.map((entry) => {
-        const cache = loadRepoCache();
-        return entry.name === repo.name ? data : (cache[entry.name] || emptyRepoData());
-      }));
-      setRepoStatus(repo.name, 'ready');
+      try {
+        setRepoStatus(repo.name, 'refreshing...');
+        if (route) setRepoHealth(repo.name, 'checking');
+        const probe = route ? probeRemoteHost(repo).catch(() => false) : null;
+        await ensureRepo(repo, route);
+        const data = await readRepo(repo, route);
+        cacheRepoData(repo.name, data);
+        if (route) setRepoHealth(repo.name, (await probe) ? 'available' : 'unavailable');
+        renderApp(repos.map((entry) => {
+          const cache = loadRepoCache();
+          return entry.name === repo.name ? data : (cache[entry.name] || emptyRepoData());
+        }));
+        setRepoStatus(repo.name, 'ready');
+      } catch (e) {
+        if (route) setRepoHealth(repo.name, 'unavailable');
+        setRepoStatus(repo.name, `refresh failed: ${e.message}`);
+        console.warn('git viewer failed:', e);
+      }
     }
 
     async function refreshList() {
@@ -719,13 +781,18 @@
       }
       try {
         setStatus(`loading ${route.repo.name}...`);
+        setRepoHealth(route.repo.name, 'checking');
         renderApp();
+        const probe = probeRemoteHost(route.repo).catch(() => false);
         await ensureRepo(route.repo, route);
         const data = await readRepo(route.repo, route);
         cacheRepoData(route.repo.name, data);
+        const available = await probe;
+        setRepoHealth(route.repo.name, available ? 'available' : 'unavailable');
         renderApp(data);
         setStatus('ready');
       } catch (e) {
+        setRepoHealth(route.repo.name, 'unavailable');
         setStatus(`unavailable: ${e.message}`);
         console.warn('git viewer failed:', e);
       }
