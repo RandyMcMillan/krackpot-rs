@@ -49,6 +49,7 @@
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
 
     const fs = new LightningFS('git-viewer');
+    const REPO_CACHE_KEY = 'nostr-dag-git-repo-cache-v1';
     const repos = [
       {
         name: 'nostr-dag',
@@ -119,6 +120,31 @@
     function setRepoStatus(repoName, text) {
       repoState.set(repoName, text);
       renderRepos();
+    }
+
+    function loadRepoCache() {
+      try {
+        const raw = window.localStorage.getItem(REPO_CACHE_KEY);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveRepoCache(cache) {
+      try {
+        window.localStorage.setItem(REPO_CACHE_KEY, JSON.stringify(cache));
+      } catch {
+        // Best-effort only.
+      }
+    }
+
+    function cacheRepoData(repoName, data) {
+      const cache = loadRepoCache();
+      cache[repoName] = data;
+      saveRepoCache(cache);
     }
 
     async function pathExists(path) {
@@ -212,8 +238,21 @@
       }
 
       setRepoStatus(repo.name, 'fetching tags...');
-      await git.fetch({ fs, http, dir, corsProxy: 'https://cors.isomorphic-git.org', url, tags: true, depth: 1 }).catch(() => {});
+      await fetchRepoRefs(repo).catch(() => {});
       setRepoStatus(repo.name, 'ready');
+    }
+
+    async function fetchRepoRefs(repo) {
+      await git.fetch({
+        fs,
+        http,
+        dir: repo.dir,
+        corsProxy: 'https://cors.isomorphic-git.org',
+        url: repo.url,
+        all: true,
+        tags: true,
+        depth: 1,
+      });
     }
 
     async function readRepo(repo) {
@@ -237,8 +276,28 @@
     }
 
     function renderRepos(results = null) {
-      const data = results || repos.map(() => ({ latest: 'n/a', files: [], tags: [] }));
+      const cache = loadRepoCache();
+      const data = results || repos.map((repo) => cache[repo.name] || { latest: 'n/a', files: [], tags: [] });
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
+      reposEl.querySelectorAll('[data-refresh-repo]').forEach((button) => {
+        button.addEventListener('click', () => {
+          void refreshOneRepo(button.getAttribute('data-refresh-repo'));
+        });
+      });
+    }
+
+    async function refreshOneRepo(repoName) {
+      const repo = repos.find((entry) => entry.name === repoName);
+      if (!repo) return;
+      setRepoStatus(repo.name, 'refreshing...');
+      await ensureRepo(repo);
+      const data = await readRepo(repo);
+      cacheRepoData(repo.name, data);
+      renderRepos(repos.map((entry) => {
+        const cache = loadRepoCache();
+        return entry.name === repo.name ? data : (cache[entry.name] || { latest: 'n/a', files: [], tags: [] });
+      }));
+      setRepoStatus(repo.name, 'ready');
     }
 
     async function refresh() {
@@ -251,6 +310,7 @@
           setStatus(`partial: ${repos.length - failed.length}/${repos.length} repos ready`);
         }
         const results = await Promise.all(repos.map(readRepo));
+        results.forEach((data, index) => cacheRepoData(repos[index].name, data));
         renderRepos(results);
         setStatus('ready');
       } catch (e) {
