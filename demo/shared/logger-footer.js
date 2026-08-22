@@ -157,6 +157,7 @@ export function createLoggerFooter(root, options = {}) {
   let autoScroll = true;
   let scrollListenerBound = false;
   let footerObserver = null;
+  let scrollbarTimer = null;
 
   function persistState() {
     savePersistedFooterState(storageKey, { open, level });
@@ -183,20 +184,39 @@ export function createLoggerFooter(root, options = {}) {
     scrollListenerBound = true;
     logEl.addEventListener('scroll', () => {
       autoScroll = isNearBottom();
+      showScrollbars();
     });
     logEl.addEventListener('pointerdown', () => {
       autoScroll = false;
+      showScrollbars();
     });
     logEl.addEventListener('wheel', () => {
       autoScroll = false;
+      showScrollbars();
     }, { passive: true });
     logEl.addEventListener('touchstart', () => {
       autoScroll = false;
+      showScrollbars();
     }, { passive: true });
+    logEl.addEventListener('pointerenter', showScrollbars);
+    logEl.addEventListener('mousemove', showScrollbars);
+    logEl.addEventListener('focusin', showScrollbars);
   }
 
   function syncFooterSpacer() {
     setFooterSpacer(root.getBoundingClientRect?.().height || root.offsetHeight || 0);
+  }
+
+  function hideScrollbarsLater() {
+    if (scrollbarTimer) clearTimeout(scrollbarTimer);
+    scrollbarTimer = setTimeout(() => {
+      logEl.classList.remove('footer-scrollbars-active');
+    }, 2000);
+  }
+
+  function showScrollbars() {
+    logEl.classList.add('footer-scrollbars-active');
+    hideScrollbarsLater();
   }
 
   function renderLevelPills() {
@@ -231,6 +251,7 @@ export function createLoggerFooter(root, options = {}) {
       : '<div class="muted">No log entries yet.</div>';
     scheduleScrollBottom();
     syncFooterSpacer();
+    if (open) showScrollbars();
   }
 
   function setState(state, text) {
@@ -299,6 +320,8 @@ export function createLoggerFooter(root, options = {}) {
     destroy() {
       footerObserver?.disconnect?.();
       footerObserver = null;
+      if (scrollbarTimer) clearTimeout(scrollbarTimer);
+      scrollbarTimer = null;
     },
   };
 }
