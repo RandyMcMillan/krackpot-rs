@@ -59,6 +59,22 @@
     .blob-toolbar .repo-toolbar { margin-top:0; }
     .blob-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
     .blame-shell { width:100%; overflow:auto; }
+    .blame-head, .blame-row { display:grid; grid-template-columns: 12ch 4ch 22ch minmax(0, 1fr); gap:12px; align-items:start; }
+    /* 1. Commit hash */
+    .blame-head { padding:10px 12px; background:var(--status-bg); color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--border); }
+    /* 2. Line */
+    .blame-row { padding:8px 12px; border-top:1px solid var(--border); }
+    /* 3. Time */
+    .blame-row:first-child { border-top:0; }
+    /* 4. Content */
+    .blame-hash, .blame-lno, .blame-time, .blame-text { min-width:0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; line-height:1.45; }
+    .blame-hash { color:var(--accent); white-space:nowrap; }
+    .blame-lno { color:var(--muted); text-align:right; white-space:nowrap; }
+    .blame-time { color:var(--muted); white-space:nowrap; }
+    .blame-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+    .blame-meta { color:var(--muted); font-size:11px; margin-top:2px; }
+    .detail-empty { padding:18px; border:1px dashed var(--border); border-radius:8px; }
+    .blame-empty { padding:18px; }
     .sticky-header { position:sticky; top:0; width:100%; z-index:1000; background:var(--surface-strong); color:var(--fg); box-shadow:0 2px 10px var(--shadow); }
     .header-container { display:flex; justify-content:space-between; align-items:center; max-width:1200px; margin:0 auto; padding:1rem 2rem; gap:1rem; }
     .logo { font-size:1.5rem; font-weight:bold; color:var(--accent); text-decoration:none; display:inline-block; }
