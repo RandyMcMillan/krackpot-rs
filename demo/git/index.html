@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="/favicon.ico" />
   <title>nostr-dag Git Viewer</title>
   <style>
     body { font-family: system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px 20px 80px; background:#0f172a; color:#e2e8f0; }
@@ -11,16 +12,24 @@
     .panel { background:#111827; border:1px solid #334155; border-radius:8px; padding:14px; margin:14px 0; }
     .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
     .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+    .detail-grid { display:grid; grid-template-columns: 2fr 1fr; gap:14px; }
     .repo { border:1px solid #334155; border-radius:8px; background:#0b1220; padding:12px; }
     .repo h3 { margin-top:0; }
     .status { padding:8px 10px; border-radius:6px; background:#1f2937; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:#1f2937; }
+    .list { list-style:none; padding:0; margin:0; }
+    .list-item { border-bottom:1px solid #1f2937; padding:10px 0; }
+    .list-item:last-child { border-bottom:0; }
+    .detail-shell { border:1px solid #334155; border-radius:8px; background:#0b1220; padding:12px; }
+    .detail-empty { padding:18px; border:1px dashed #334155; border-radius:8px; }
+    .actions { display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; }
     ul { padding-left:18px; }
     button, a.button { background:#4c1d95; color:#e2e8f0; border:1px solid #6d28d9; border-radius:6px; padding:8px 12px; text-decoration:none; cursor:pointer; }
     button:hover, a.button:hover { background:#5b21b6; }
     .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:#020617; border-top:1px solid #334155; padding:10px 20px; z-index:40; }
     .sticky-footer-inner { max-width:1200px; margin:0 auto; }
-    @media (max-width: 900px) { .grid { grid-template-columns:1fr; } }
+    @media (max-width: 900px) { .grid, .detail-grid { grid-template-columns:1fr; } }
   </style>
 </head>
 <body>
@@ -111,6 +120,7 @@
     const footerStatusEl = document.getElementById('footerStatus');
     const reposEl = document.getElementById('repos');
     const repoState = new Map();
+    const refreshBtn = document.getElementById('refreshBtn');
 
     function setStatus(text) {
       statusEl.textContent = text;
@@ -119,7 +129,7 @@
 
     function setRepoStatus(repoName, text) {
       repoState.set(repoName, text);
-      renderRepos();
+      renderApp();
     }
 
     function loadRepoCache() {
@@ -150,10 +160,14 @@
     function emptyRepoData() {
       return {
         latest: 'n/a',
+        latestCommit: null,
         files: [],
         tags: [],
         branches: [],
         ref: 'n/a',
+        defaultRef: 'n/a',
+        selectedRef: 'n/a',
+        commits: [],
       };
     }
 
@@ -189,10 +203,22 @@
 
     function repoSelectionHref(repo, { branch = null, tag = null } = {}) {
       const search = new URLSearchParams();
+      search.set('repo', repo.name);
       if (branch) search.set('branch', branch);
       if (tag) search.set('tag', tag);
-      const query = search.toString();
-      return `/git/${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
+      return `/git/?${search.toString()}`;
+    }
+
+    function getRouteContext() {
+      const params = new URLSearchParams(window.location.search);
+      const repoName = params.get('repo') || '';
+      const routeRepo = repos.find((entry) => entry.name === repoName) || null;
+      return {
+        repo: routeRepo,
+        repoName: repoName || null,
+        branch: params.get('branch') || '',
+        tag: params.get('tag') || '',
+      };
     }
 
     async function pathExists(path) {
@@ -206,11 +232,8 @@
 
     function createRepoCardModel(repo, data) {
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
-      const tagItems = data.tags.length
-        ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ')
-        : 'none';
-      const selectedBranch = data.branches.includes(data.ref) ? data.ref : (data.branches[0] || '');
-      const selectedTag = data.tags[0] || '';
+      const selectedBranch = data.branches.includes(data.selectedRef) ? data.selectedRef : (data.branches[0] || '');
+      const selectedTag = data.tags.includes(data.selectedRef) ? data.selectedRef : (data.tags[0] || '');
 
       return {
         repo,
@@ -219,6 +242,7 @@
         ref: data.ref || 'n/a',
         latest: data.latest || 'n/a',
         latestHtml: renderLatestSummary(data.latest || 'n/a'),
+        selectedRef: data.selectedRef || data.ref || 'n/a',
         branches: data.branches || [],
         tagsList: data.tags || [],
         selectedBranch,
@@ -227,8 +251,11 @@
           refreshId: repo.name,
           primaryHref: repo.url,
           primaryLabel: 'Open upstream',
-          secondaryHref: `/git/${encodeURIComponent(repo.name)}/`,
-          secondaryLabel: 'Open details',
+          secondaryHref: repoSelectionHref(repo, {
+            branch: selectedBranch || null,
+            tag: selectedTag || null,
+          }),
+          secondaryLabel: 'View repo',
         },
       };
     }
@@ -243,6 +270,7 @@
           <div class="small muted"><a href="${card.repo.url}" target="_blank" rel="noreferrer noopener">${card.repo.url}</a></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${card.status}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${card.ref}</span></div>
+          <div class="small" style="margin-top:4px;"><span class="muted">Selected:</span> <span class="mono">${escapeHtml(card.selectedRef)}</span></div>
           <div class="small" style="margin-top:8px;">${card.latestHtml}</div>
           <div class="small" style="margin-top:8px;">
             <div class="muted">Branches</div>
@@ -267,6 +295,35 @@
 
     function repoCard(repo, data) {
       return renderRepoCard(createRepoCardModel(repo, data));
+    }
+
+    function createCommitSummary(commit) {
+      const message = commit?.commit?.message || 'n/a';
+      const summary = message.split('\n')[0] || 'n/a';
+      const author = commit?.commit?.author?.name || 'unknown';
+      const timestamp = Number(commit?.commit?.author?.timestamp);
+      const date = Number.isFinite(timestamp) ? new Date(timestamp * 1000).toLocaleString() : 'n/a';
+      return {
+        oid: commit?.oid || 'n/a',
+        summary,
+        author,
+        date,
+        message,
+      };
+    }
+
+    function defaultRefForRefs(branches, tags) {
+      if (branches.includes('main')) return 'main';
+      if (branches.includes('master')) return 'master';
+      if (branches[0]) return branches[0];
+      if (tags[0]) return tags[0];
+      return 'HEAD';
+    }
+
+    function resolveRefSelection(branches, tags, route) {
+      if (route.branch && branches.includes(route.branch)) return route.branch;
+      if (route.tag && tags.includes(route.tag)) return route.tag;
+      return defaultRefForRefs(branches, tags);
     }
 
     async function ensureRepo(repo) {
@@ -312,32 +369,185 @@
       });
     }
 
-    async function readRepo(repo) {
+    async function readRepo(repo, route = null) {
       const localBranches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
       const remoteBranches = await git.listBranches({ fs, dir: repo.dir, remote: 'origin' }).catch(() => []);
       const branches = [...new Set([...localBranches, ...remoteBranches])];
-      const ref = branches.includes('main')
-        ? 'main'
-        : branches.includes('master')
-          ? 'master'
-          : branches[0] || 'HEAD';
-      const commits = await git.log({ fs, dir: repo.dir, ref, depth: 1 });
-      const latest = commits[0]?.commit?.message || 'n/a';
-      const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
+      tags.sort((a, b) => a.localeCompare(b));
+      const ref = resolveRefSelection(branches, tags, route || {});
+      const fallbackRef = defaultRefForRefs(branches, tags);
+      let commits = [];
+      let selectedRef = ref;
+      for (const candidate of [ref, fallbackRef, 'HEAD']) {
+        if (!candidate) continue;
+        try {
+          commits = await git.log({ fs, dir: repo.dir, ref: candidate, depth: 12 });
+          selectedRef = candidate;
+          break;
+        } catch {
+          commits = [];
+        }
+      }
+      const latestCommit = commits[0] || null;
+      const latest = latestCommit?.commit?.message || 'n/a';
+      const files = await git.listFiles({ fs, dir: repo.dir, ref: selectedRef }).catch(() => []);
       return {
         latest,
-        files: files.slice(0, 40),
-        tags: tags.sort((a, b) => a.localeCompare(b)),
+        latestCommit: latestCommit ? createCommitSummary(latestCommit) : null,
+        files: files.slice(0, 100),
+        tags,
         branches: branches.sort((a, b) => a.localeCompare(b)),
         ref,
+        defaultRef: fallbackRef,
+        selectedRef,
+        commits: commits.slice(0, 12).map(createCommitSummary),
       };
     }
 
-    function renderRepos(results = null) {
+    function renderRepoList(results = null) {
       const cache = loadRepoCache();
       const data = results || repos.map((repo) => cache[repo.name] || emptyRepoData());
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
+    }
+
+    function renderCommitList(commits) {
+      if (!commits.length) {
+        return '<div class="detail-empty muted">No commits found.</div>';
+      }
+      return `<ul class="list">${commits.map((commit) => `
+        <li class="list-item">
+          <div class="mono">${escapeHtml(commit.oid.slice(0, 12))}</div>
+          <div style="margin-top:4px;">${escapeHtml(commit.summary)}</div>
+          <div class="small muted" style="margin-top:4px;">${escapeHtml(commit.author)} · ${escapeHtml(commit.date)}</div>
+        </li>
+      `).join('')}</ul>`;
+    }
+
+    function renderFileList(files) {
+      if (!files.length) {
+        return '<div class="detail-empty muted">No files found for this ref.</div>';
+      }
+      return `<ul class="list">${files.map((file) => `
+        <li class="list-item mono">${escapeHtml(file)}</li>
+      `).join('')}</ul>`;
+    }
+
+    function renderRepoDetail(repo, data, route) {
+      const branchSelected = route.branch && data.branches.includes(route.branch) ? route.branch : (data.branches.includes(data.selectedRef) ? data.selectedRef : '');
+      const tagSelected = route.tag && data.tags.includes(route.tag) ? route.tag : (data.tags.includes(data.selectedRef) ? data.selectedRef : '');
+      const currentRef = escapeHtml(data.selectedRef || data.ref || 'n/a');
+      const currentCommit = data.latestCommit || null;
+      const latestMessage = currentCommit ? currentCommit.summary : 'n/a';
+      const commitCount = data.commits.length;
+      const detailSummary = `
+        <div class="row" style="justify-content:space-between; align-items:flex-start;">
+          <div>
+            <div class="muted small">Repository</div>
+            <h2 style="margin:4px 0 6px;">${escapeHtml(repo.name)}</h2>
+            <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
+          </div>
+          <div class="actions">
+            <button type="button" data-refresh-repo="${repo.name}">Refresh</button>
+            <a class="button" href="/git/">Back to repos</a>
+            <a class="button" href="${repo.url}" target="_blank" rel="noreferrer noopener">Open upstream</a>
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px; gap:18px;">
+          <span class="pill">Status: ${escapeHtml(repoState.get(repo.name) || 'idle')}</span>
+          <span class="pill">Ref: <span class="mono">${currentRef}</span></span>
+          <span class="pill">Files: ${data.files.length}</span>
+          <span class="pill">Commits: ${commitCount}</span>
+        </div>
+        <div class="small" style="margin-top:10px;">
+          <span class="muted">Latest:</span> <span class="mono">${escapeHtml(latestMessage)}</span>
+        </div>
+        ${currentCommit ? `
+          <div class="small" style="margin-top:6px;">
+            <span class="muted">Commit:</span> <span class="mono">${escapeHtml(currentCommit.oid.slice(0, 12))}</span>
+            <span class="muted">·</span> <span>${escapeHtml(currentCommit.author)}</span>
+            <span class="muted">·</span> <span>${escapeHtml(currentCommit.date)}</span>
+          </div>
+        ` : ''}
+      `;
+
+      return `
+        <div class="detail-shell">
+          ${detailSummary}
+          <div class="row" style="margin-top:12px;">
+            <div style="min-width:240px; flex:1;">
+              <div class="muted">Branches</div>
+              <select data-branch-select="${repo.name}" style="width:100%; margin-top:6px;">
+                ${buildSelectOptions(data.branches, branchSelected, 'Quick jump branch')}
+              </select>
+            </div>
+            <div style="min-width:240px; flex:1;">
+              <div class="muted">Tags</div>
+              <select data-tag-select="${repo.name}" style="width:100%; margin-top:6px;">
+                ${buildSelectOptions(data.tags, tagSelected, 'Quick jump tag')}
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="detail-grid" style="margin-top:14px;">
+          <div class="detail-shell">
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <h3 style="margin:0;">Files</h3>
+              <span class="muted small">${data.files.length} entries</span>
+            </div>
+            <div style="margin-top:10px;">${renderFileList(data.files)}</div>
+          </div>
+          <div class="detail-shell">
+            <div class="row" style="justify-content:space-between; align-items:center;">
+              <h3 style="margin:0;">Recent commits</h3>
+              <span class="muted small">${commitCount} loaded</span>
+            </div>
+            <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderRepoNotFound(route) {
+      const repoName = route.repoName || 'unknown';
+      const repoList = repos.map((repo) => `<li class="list-item"><a href="${repoSelectionHref(repo)}">${escapeHtml(repo.name)}</a></li>`).join('');
+      reposEl.innerHTML = `
+        <div class="detail-shell">
+          <div class="row" style="justify-content:space-between; align-items:flex-start;">
+            <div>
+              <div class="muted small">Repository not found</div>
+              <h2 style="margin:4px 0 0;">${escapeHtml(repoName)}</h2>
+            </div>
+            <div class="actions">
+              <a class="button" href="/git/">Back to all repos</a>
+            </div>
+          </div>
+          <div class="detail-empty" style="margin-top:12px;">
+            The requested repository is not in this viewer.
+          </div>
+        </div>
+        <div class="detail-shell" style="margin-top:14px;">
+          <h3 style="margin-top:0;">Available repositories</h3>
+          <ul class="list">${repoList}</ul>
+        </div>
+      `;
+    }
+
+    function renderApp(results = null) {
+      const route = getRouteContext();
+      if (route.repo) {
+        const cache = loadRepoCache();
+        const data = results && !Array.isArray(results) ? results : (cache[route.repo.name] || emptyRepoData());
+        reposEl.className = '';
+        reposEl.innerHTML = renderRepoDetail(route.repo, data, route);
+      } else if (route.repoName) {
+        reposEl.className = '';
+        renderRepoNotFound(route);
+      } else {
+        reposEl.className = 'grid';
+        renderRepoList(Array.isArray(results) ? results : null);
+      }
+
       reposEl.querySelectorAll('[data-refresh-repo]').forEach((button) => {
         button.addEventListener('click', () => {
           void refreshOneRepo(button.getAttribute('data-refresh-repo'));
@@ -362,27 +572,54 @@
       if (!repo) return;
       setRepoStatus(repo.name, 'refreshing...');
       await ensureRepo(repo);
-      const data = await readRepo(repo);
+      const route = getRouteContext().repo?.name === repo.name ? getRouteContext() : null;
+      const data = await readRepo(repo, route);
       cacheRepoData(repo.name, data);
-      renderRepos(repos.map((entry) => {
+      renderApp(repos.map((entry) => {
         const cache = loadRepoCache();
         return entry.name === repo.name ? data : (cache[entry.name] || emptyRepoData());
       }));
       setRepoStatus(repo.name, 'ready');
     }
 
-    async function refresh() {
+    async function refreshList() {
       try {
         setStatus('loading repos...');
-        renderRepos();
+        renderApp();
         const ensured = await Promise.allSettled(repos.map(ensureRepo));
-        const failed = ensured.filter((result) => result.status === 'rejected');
-        if (failed.length) {
-          setStatus(`partial: ${repos.length - failed.length}/${repos.length} repos ready`);
-        }
-        const results = await Promise.all(repos.map(readRepo));
-        results.forEach((data, index) => cacheRepoData(repos[index].name, data));
-        renderRepos(results);
+        const readyRepos = repos.filter((_, index) => ensured[index].status === 'fulfilled');
+        const readResults = await Promise.allSettled(readyRepos.map((repo) => readRepo(repo)));
+        const cache = loadRepoCache();
+        const results = repos.map((repo) => {
+          const readIndex = readyRepos.findIndex((entry) => entry.name === repo.name);
+          if (readIndex >= 0 && readResults[readIndex].status === 'fulfilled') {
+            const data = readResults[readIndex].value;
+            cacheRepoData(repo.name, data);
+            return data;
+          }
+          return cache[repo.name] || emptyRepoData();
+        });
+        renderApp(results);
+        const readyCount = readyRepos.length;
+        setStatus(readyCount === repos.length ? 'ready' : `partial: ${readyCount}/${repos.length} repos ready`);
+      } catch (e) {
+        setStatus(`unavailable: ${e.message}`);
+        console.warn('git viewer failed:', e);
+      }
+    }
+
+    async function refreshDetail(route) {
+      if (!route.repo) {
+        renderApp();
+        return;
+      }
+      try {
+        setStatus(`loading ${route.repo.name}...`);
+        renderApp();
+        await ensureRepo(route.repo);
+        const data = await readRepo(route.repo, route);
+        cacheRepoData(route.repo.name, data);
+        renderApp(data);
         setStatus('ready');
       } catch (e) {
         setStatus(`unavailable: ${e.message}`);
@@ -390,7 +627,20 @@
       }
     }
 
-    document.getElementById('refreshBtn').addEventListener('click', () => { void refresh(); });
+    async function refresh() {
+      const route = getRouteContext();
+      if (route.repo) {
+        await refreshDetail(route);
+      } else if (route.repoName) {
+        renderApp();
+        setStatus(`unknown repo: ${route.repoName}`);
+      } else {
+        await refreshList();
+      }
+    }
+
+    refreshBtn.addEventListener('click', () => { void refresh(); });
+    renderApp();
     void refresh();
   </script>
 </body>
