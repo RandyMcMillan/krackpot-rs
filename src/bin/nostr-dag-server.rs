@@ -99,7 +99,8 @@ async fn handle_connection(mut stream: TcpStream, site_dir: &str) -> io::Result<
 }
 
 async fn route_path(site_dir: &str, path: &str) -> Result<(Vec<u8>, &'static str), RouteError> {
-    if strip_query(path) == "/favicon.ico" {
+    let path = strip_query(path);
+    if path == "/favicon.ico" {
         return Ok((FAVICON_ICO.to_vec(), "image/x-icon"));
     }
     let normalized = normalize_path(path)?;
@@ -145,6 +146,10 @@ fn normalize_path(path: &str) -> Result<PathBuf, RouteError> {
         }
     }
     Ok(out)
+}
+
+fn strip_query(path: &str) -> &str {
+    path.split_once(['?', '#']).map(|(head, _)| head).unwrap_or(path)
 }
 
 fn content_type_for_path(path: &Path) -> &'static str {
