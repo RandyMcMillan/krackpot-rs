@@ -17,6 +17,33 @@ function normalizeState(text, fallback = 'idle') {
   return fallback;
 }
 
+const LOG_LEVELS = ['none', 'info', 'debug', 'trace', 'warn'];
+
+function normalizeLevel(value) {
+  const level = String(value || 'info').toLowerCase();
+  return LOG_LEVELS.includes(level) ? level : 'info';
+}
+
+function parseLogArgs(levelOrState = 'info', maybeState = null) {
+  if (maybeState === null && !LOG_LEVELS.includes(String(levelOrState).toLowerCase())) {
+    return {
+      level: null,
+      state: String(levelOrState || 'idle'),
+    };
+  }
+  return {
+    level: normalizeLevel(levelOrState),
+    state: maybeState,
+  };
+}
+
+function deriveLevelFromState(state) {
+  const value = String(state || '').toLowerCase();
+  if (value.includes('unavailable') || value.includes('failed') || value.includes('error')) return 'warn';
+  if (value.includes('checking') || value.includes('refresh') || value.includes('loading') || value.includes('cloning') || value.includes('fetching') || value.includes('caching') || value.includes('starting') || value.includes('reading') || value.includes('writing') || value.includes('committing')) return 'debug';
+  return 'info';
+}
+
 export function createLoggerFooter(root, options = {}) {
   if (!root) {
     return {
@@ -40,10 +67,18 @@ export function createLoggerFooter(root, options = {}) {
           <span data-footer-status class="status status-idle" title=""></span>
         </div>
         <div class="footer-log-wrap">
-          <button data-footer-toggle class="footer-toggle" type="button" aria-expanded="false" aria-controls="footerLogPanel">
-            <span data-footer-chevron class="footer-chevron">▸</span>
-            <span>${title}</span>
-          </button>
+          <div class="footer-controls">
+            <button data-footer-toggle class="footer-toggle" type="button" aria-expanded="false" aria-controls="footerLogPanel">
+              <span data-footer-chevron class="footer-chevron">▸</span>
+              <span>${title}</span>
+            </button>
+            <label class="footer-level">
+              <span>Level</span>
+              <select data-footer-level>
+                ${LOG_LEVELS.map((level) => `<option value="${level}" ${level === 'info' ? 'selected' : ''}>${level}</option>`).join('')}
+              </select>
+            </label>
+          </div>
         </div>
       </div>
       <div data-footer-log class="footer-log" hidden></div>
@@ -53,16 +88,20 @@ export function createLoggerFooter(root, options = {}) {
   const statusEl = root.querySelector('[data-footer-status]');
   const toggleEl = root.querySelector('[data-footer-toggle]');
   const chevronEl = root.querySelector('[data-footer-chevron]');
+  const levelEl = root.querySelector('[data-footer-level]');
   const logEl = root.querySelector('[data-footer-log]');
   const logs = [];
   let open = false;
+  let level = normalizeLevel(options.initialLevel || 'info');
 
   function render() {
     chevronEl.className = `footer-chevron${open ? ' open' : ''}`;
     toggleEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+    levelEl.value = level;
     logEl.hidden = !open;
-    logEl.innerHTML = logs.length
-      ? logs.map((entry) => `
+    const visibleLogs = level === 'none' ? [] : logs.filter((entry) => entry.level === level);
+    logEl.innerHTML = visibleLogs.length
+      ? visibleLogs.map((entry) => `
         <div class="footer-log-item">
           <span class="footer-log-time mono">${entry.time}</span>
           <span>${entry.label ? `${entry.label}: ` : ''}${entry.text}</span>
@@ -77,16 +116,24 @@ export function createLoggerFooter(root, options = {}) {
     statusEl.title = text || initialTitle;
   }
 
-  function log(label, text, state = null) {
+  function log(label, text, levelOrState = 'info', maybeState = null) {
+    const { level: providedLevel, state } = parseLogArgs(levelOrState, maybeState);
+    const nextLevel = providedLevel || deriveLevelFromState(state);
     logs.push({
       time: new Date().toLocaleTimeString(),
       label: label || '',
       text: String(text),
+      level: nextLevel,
     });
     while (logs.length > 24) logs.shift();
     setState(state || normalizeState(text), label ? `${label}: ${text}` : String(text));
     render();
   }
+
+  levelEl.addEventListener('change', () => {
+    level = normalizeLevel(levelEl.value);
+    render();
+  });
 
   toggleEl.addEventListener('click', () => {
     open = !open;
@@ -99,6 +146,13 @@ export function createLoggerFooter(root, options = {}) {
   return {
     log,
     setState,
+    setLevel(nextLevel) {
+      level = normalizeLevel(nextLevel);
+      render();
+    },
+    getLevel() {
+      return level;
+    },
     open() {
       open = true;
       render();
