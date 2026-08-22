@@ -5,6 +5,9 @@ edition = "2021"
 license = "MIT"
 description = "DAG-based optimistic consensus for Nostr"
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 
