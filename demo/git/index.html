@@ -140,6 +140,7 @@
 
   <script type="module">
     import { createLoggerFooter } from '../shared/logger-footer.js';
+    import { remoteTagNames } from '../shared/git-refs.mjs';
     import { createGitProgressReporter } from '../shared/git-progress.mjs';
     import { resolveHref } from '../shared/page-path.js';
     import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
@@ -598,6 +599,8 @@
         url: repo.url,
         all: true,
         tags: true,
+        force: true,
+        prune: true,
         onProgress,
         ...selection,
       });
@@ -607,13 +610,23 @@
       const localBranches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
       const remoteBranches = await git.listBranches({ fs, dir: repo.dir, remote: 'origin' }).catch(() => []);
       const branches = [...new Set([...localBranches, ...remoteBranches])];
-      const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
+      const serverRefs = await git.listServerRefs({
+        fs,
+        http,
+        corsProxy: 'https://cors.isomorphic-git.org',
+        url: repo.url,
+      }).catch(() => []);
+      const tags = [...new Set([
+        ...await git.listTags({ fs, dir: repo.dir }).catch(() => []),
+        ...remoteTagNames(serverRefs),
+      ])];
       tags.sort((a, b) => a.localeCompare(b));
       const ref = resolveRefSelection(branches, tags, route || {});
       const selectedRef = selectedRefForRoute(route) || ref;
       const candidates = refCandidatesForRoute(route, branches, tags);
       let commits = [];
       let resolvedRef = ref;
+      let reloadedAfterMiss = false;
       for (const candidate of candidates) {
         if (!candidate) continue;
         try {
@@ -622,6 +635,30 @@
           break;
         } catch {
           commits = [];
+        }
+      }
+      if (!commits.length && route?.tag && !reloadedAfterMiss) {
+        reloadedAfterMiss = true;
+        await fetchRepoRefs(repo, route).catch(() => {});
+        const retryTags = [...new Set([
+          ...await git.listTags({ fs, dir: repo.dir }).catch(() => []),
+          ...remoteTagNames(await git.listServerRefs({
+            fs,
+            http,
+            corsProxy: 'https://cors.isomorphic-git.org',
+            url: repo.url,
+          }).catch(() => [])),
+        ])];
+        retryTags.sort((a, b) => a.localeCompare(b));
+        for (const candidate of refCandidatesForRoute(route, branches, retryTags)) {
+          if (!candidate) continue;
+          try {
+            commits = await git.log({ fs, dir: repo.dir, ref: candidate, depth: 12 });
+            resolvedRef = candidate;
+            break;
+          } catch {
+            commits = [];
+          }
         }
       }
       const latestCommit = commits[0] || null;
