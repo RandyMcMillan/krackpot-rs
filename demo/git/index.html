@@ -164,6 +164,29 @@
       return `<option value="">${placeholder}</option>${options}`;
     }
 
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function renderLatestSummary(text) {
+      const value = text || 'n/a';
+      if (value.length <= 80) {
+        return `<span class="muted">Latest:</span> <span class="mono">${escapeHtml(value)}</span>`;
+      }
+      const preview = `${value.slice(0, 80).trimEnd()}…`;
+      return `
+        <details class="small">
+          <summary style="cursor:pointer;"><span class="muted">Latest:</span> <span class="mono">${escapeHtml(preview)}</span></summary>
+          <div class="mono" style="margin-top:8px; word-break:break-word;">${escapeHtml(value)}</div>
+        </details>
+      `;
+    }
+
     function repoSelectionHref(repo, { branch = null, tag = null } = {}) {
       const search = new URLSearchParams();
       if (branch) search.set('branch', branch);
@@ -195,6 +218,7 @@
         status: repoState.get(repo.name) || 'idle',
         ref: data.ref || 'n/a',
         latest: data.latest || 'n/a',
+        latestHtml: renderLatestSummary(data.latest || 'n/a'),
         branches: data.branches || [],
         tagsList: data.tags || [],
         selectedBranch,
@@ -219,7 +243,7 @@
           <div class="small muted"><a href="${card.repo.url}" target="_blank" rel="noreferrer noopener">${card.repo.url}</a></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${card.status}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${card.ref}</span></div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${card.latest}</span></div>
+          <div class="small" style="margin-top:8px;">${card.latestHtml}</div>
           <div class="small" style="margin-top:8px;">
             <div class="muted">Branches</div>
             <select data-branch-select="${card.repo.name}" style="width:100%; margin-top:6px;">
