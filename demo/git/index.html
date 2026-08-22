@@ -365,8 +365,8 @@
     }
 
     function resolveRefSelection(branches, tags, route) {
-      if (route.branch && branches.includes(route.branch)) return route.branch;
-      if (route.tag && tags.includes(route.tag)) return route.tag;
+      if (route.branch) return route.branch;
+      if (route.tag) return route.tag;
       return defaultRefForRefs(branches, tags);
     }
 
