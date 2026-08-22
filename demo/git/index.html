@@ -164,6 +164,14 @@
       return `<option value="">${placeholder}</option>${options}`;
     }
 
+    function repoSelectionHref(repo, { branch = null, tag = null } = {}) {
+      const search = new URLSearchParams();
+      if (branch) search.set('branch', branch);
+      if (tag) search.set('tag', tag);
+      const query = search.toString();
+      return `/git/${encodeURIComponent(repo.name)}/${query ? `?${query}` : ''}`;
+    }
+
     async function pathExists(path) {
       try {
         await fs.promises.stat(path);
@@ -175,12 +183,11 @@
 
     function createRepoCardModel(repo, data) {
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
-      const fileItems = data.files.length
-        ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('')
-        : '<li>none</li>';
       const tagItems = data.tags.length
         ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ')
         : 'none';
+      const selectedBranch = data.branches.includes(data.ref) ? data.ref : (data.branches[0] || '');
+      const selectedTag = data.tags[0] || '';
 
       return {
         repo,
@@ -188,13 +195,15 @@
         status: repoState.get(repo.name) || 'idle',
         ref: data.ref || 'n/a',
         latest: data.latest || 'n/a',
-        tags: tagItems,
-        files: fileItems,
+        branches: data.branches || [],
+        tagsList: data.tags || [],
+        selectedBranch,
+        selectedTag,
         toolbar: {
           refreshId: repo.name,
           primaryHref: repo.url,
           primaryLabel: 'Open upstream',
-          secondaryHref: `${window.location.pathname}?repo=${encodeURIComponent(repo.name)}`,
+          secondaryHref: `/git/${encodeURIComponent(repo.name)}/`,
           secondaryLabel: 'Open details',
         },
       };
@@ -211,11 +220,18 @@
           <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${card.status}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${card.ref}</span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${card.latest}</span></div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${card.tags}</div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Files:</span></div>
-          <ul>
-            ${card.files}
-          </ul>
+          <div class="small" style="margin-top:8px;">
+            <div class="muted">Branches</div>
+            <select data-branch-select="${card.repo.name}" style="width:100%; margin-top:6px;">
+              ${buildSelectOptions(card.branches, card.selectedBranch, 'Quick jump branch')}
+            </select>
+          </div>
+          <div class="small" style="margin-top:8px;">
+            <div class="muted">Tags</div>
+            <select data-tag-select="${card.repo.name}" style="width:100%; margin-top:6px;">
+              ${buildSelectOptions(card.tagsList, card.selectedTag, 'Quick jump tag')}
+            </select>
+          </div>
           <div class="row" style="margin-top:12px; justify-content:flex-end;">
             <button class="repo-refresh" type="button" data-refresh-repo="${card.toolbar.refreshId}">Refresh</button>
             <a class="button" href="${card.toolbar.secondaryHref}">${card.toolbar.secondaryLabel}</a>
@@ -273,7 +289,9 @@
     }
 
     async function readRepo(repo) {
-      const branches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
+      const localBranches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []);
+      const remoteBranches = await git.listBranches({ fs, dir: repo.dir, remote: 'origin' }).catch(() => []);
+      const branches = [...new Set([...localBranches, ...remoteBranches])];
       const ref = branches.includes('main')
         ? 'main'
         : branches.includes('master')
@@ -283,22 +301,34 @@
       const latest = commits[0]?.commit?.message || 'n/a';
       const files = await git.listFiles({ fs, dir: repo.dir }).catch(() => []);
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
-      const latestTag = tags.sort((a, b) => a.localeCompare(b)).at(-1) || null;
       return {
         latest,
         files: files.slice(0, 40),
-        tags: latestTag ? [latestTag] : [],
+        tags: tags.sort((a, b) => a.localeCompare(b)),
+        branches: branches.sort((a, b) => a.localeCompare(b)),
         ref,
       };
     }
 
     function renderRepos(results = null) {
       const cache = loadRepoCache();
-      const data = results || repos.map((repo) => cache[repo.name] || { latest: 'n/a', files: [], tags: [] });
+      const data = results || repos.map((repo) => cache[repo.name] || emptyRepoData());
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
       reposEl.querySelectorAll('[data-refresh-repo]').forEach((button) => {
         button.addEventListener('click', () => {
           void refreshOneRepo(button.getAttribute('data-refresh-repo'));
+        });
+      });
+      reposEl.querySelectorAll('[data-branch-select], [data-tag-select]').forEach((select) => {
+        select.addEventListener('change', () => {
+          const repo = repos.find((entry) => entry.name === select.getAttribute('data-branch-select') || select.getAttribute('data-tag-select'));
+          if (!repo) return;
+          const branchSelect = reposEl.querySelector(`[data-branch-select="${repo.name}"]`);
+          const tagSelect = reposEl.querySelector(`[data-tag-select="${repo.name}"]`);
+          window.location.href = repoSelectionHref(repo, {
+            branch: branchSelect && branchSelect.value ? branchSelect.value : null,
+            tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+          });
         });
       });
     }
@@ -312,7 +342,7 @@
       cacheRepoData(repo.name, data);
       renderRepos(repos.map((entry) => {
         const cache = loadRepoCache();
-        return entry.name === repo.name ? data : (cache[entry.name] || { latest: 'n/a', files: [], tags: [] });
+        return entry.name === repo.name ? data : (cache[entry.name] || emptyRepoData());
       }));
       setRepoStatus(repo.name, 'ready');
     }
