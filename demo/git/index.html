@@ -82,7 +82,8 @@
   .repo-files-name span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .repo-files-empty { padding:16px; }
   .repo-commit-list { display:grid; gap:10px; }
-  .repo-commit-item { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
+  .repo-commit-item { display:block; border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; color:inherit; text-decoration:none; }
+  .repo-commit-item:hover { background:rgba(124,58,237,.08); }
   .repo-commit-top { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .repo-commit-summary { margin-top:6px; font-weight:500; }
   .repo-commit-meta { margin-top:6px; color:var(--muted); font-size:12px; }
@@ -393,6 +394,16 @@
       return resolveHref(`./?${search.toString()}`);
     }
 
+    function repoCommitHref(repo, { branch = null, tag = null, commit = null } = {}) {
+      const search = new URLSearchParams();
+      search.set('repo', repo.name);
+      search.set('view', 'commit');
+      if (branch) search.set('branch', branch);
+      if (tag) search.set('tag', tag);
+      if (commit) search.set('commit', commit);
+      return resolveHref(`./?${search.toString()}`);
+    }
+
     function getRouteContext() {
       const params = new URLSearchParams(window.location.search);
       const repoName = params.get('repo') || '';
@@ -403,6 +414,7 @@
         view: params.get('view') || '',
         branch: params.get('branch') || '',
         tag: params.get('tag') || '',
+        commit: params.get('commit') || '',
       };
     }
 
@@ -510,12 +522,14 @@
       const author = commit?.commit?.author?.name || 'unknown';
       const timestamp = Number(commit?.commit?.author?.timestamp);
       const date = Number.isFinite(timestamp) ? new Date(timestamp * 1000).toLocaleString() : 'n/a';
+      const parents = Array.isArray(commit?.commit?.parent) ? commit.commit.parent : [];
       return {
         oid: commit?.oid || 'n/a',
         summary,
         author,
         date,
         message,
+        parents,
       };
     }
 
@@ -716,15 +730,25 @@
           }
         }
       }
+      let selectedCommit = null;
+      if (route?.commit) {
+        selectedCommit = commits.find((commit) => commit.oid === route.commit || commit.oid.startsWith(route.commit)) || null;
+        if (!selectedCommit) {
+          const directCommit = await git.log({ fs, dir: repo.dir, ref: route.commit, depth: 1 }).catch(() => []);
+          selectedCommit = directCommit[0] ? createCommitSummary(directCommit[0]) : null;
+        }
+      }
+      const snapshotRef = route?.commit ? (selectedCommit?.oid || route.commit) : resolvedRef;
       const latestCommit = commits[0] || null;
       const latest = latestCommit?.commit?.message || 'n/a';
       const branchForSelection = route?.tag
         ? await branchForCommit(repo.dir, branches, latestCommit?.oid || '')
         : '';
-      const files = await git.listFiles({ fs, dir: repo.dir, ref: resolvedRef }).catch(() => []);
+      const files = await git.listFiles({ fs, dir: repo.dir, ref: snapshotRef }).catch(() => []);
       return {
         latest,
         latestCommit: latestCommit ? createCommitSummary(latestCommit) : null,
+        selectedCommit,
         files: files.slice(0, 100),
         tags,
         branches: branches.sort((a, b) => a.localeCompare(b)),
@@ -732,6 +756,7 @@
         defaultRef: defaultRefForRefs(branches, tags),
         selectedRef,
         resolvedRef,
+        snapshotRef,
         branchForSelection,
         commits: commits.slice(0, 12).map(createCommitSummary),
       };
@@ -743,21 +768,34 @@
       reposEl.innerHTML = repos.map((repo, i) => repoCard(repo, data[i])).join('');
     }
 
-    function renderCommitList(commits) {
+    function renderCommitList(repo, commits, route) {
       if (!commits.length) {
         return '<div class="detail-empty muted">No commits found.</div>';
       }
-      return `<ul class="list">${commits.map((commit) => `
-        <li class="list-item">
-          <div class="mono">${escapeHtml(commit.oid.slice(0, 12))}</div>
-          <div style="margin-top:4px;">${escapeHtml(commit.summary)}</div>
-          <div class="small muted" style="margin-top:4px;">${escapeHtml(commit.author)} · ${escapeHtml(commit.date)}</div>
-        </li>
-      `).join('')}</ul>`;
+      return `
+        <div class="repo-commit-list">
+          ${commits.map((commit) => {
+            const href = repoCommitHref(repo, {
+              branch: route?.branch || null,
+              tag: route?.tag || null,
+              commit: commit.oid,
+            });
+            return `
+              <a class="repo-commit-item" href="${href}">
+                <div class="repo-commit-top">
+                  <div class="mono">${escapeHtml(commit.oid.slice(0, 12))}</div>
+                  <span class="muted small">View commit</span>
+                </div>
+                <div class="repo-commit-summary">${escapeHtml(commit.summary)}</div>
+                <div class="repo-commit-meta">${escapeHtml(commit.author)} · ${escapeHtml(commit.date)}</div>
+              </a>
+            `;
+          }).join('')}
+        </div>`;
     }
 
-    function renderRecentCommits(commits, forceOpen = false) {
-      const body = renderCommitList(commits);
+    function renderRecentCommits(repo, commits, route, forceOpen = false) {
+      const body = renderCommitList(repo, commits, route);
       if (commits.length <= 5) {
         return body;
       }
@@ -766,6 +804,85 @@
           <summary style="cursor:pointer;">Recent commits (${commits.length})</summary>
           <div style="margin-top:10px;">${body}</div>
         </details>
+      `;
+    }
+
+    function findCommitSummary(data, route) {
+      if (!route?.commit) return null;
+      const match = data.commits.find((commit) => commit.oid === route.commit || commit.oid.startsWith(route.commit));
+      return match || null;
+    }
+
+    function renderCommitDetail(repo, data, route) {
+      const healthState = getRepoHealth(repo.name);
+      const healthClass = repoHealthClass(healthState);
+      const selectedCommit = findCommitSummary(data, route) || data.selectedCommit || data.latestCommit;
+      const selectedSha = selectedCommit?.oid || route.commit || data.resolvedRef || data.selectedRef || data.ref || 'n/a';
+      const parentList = (selectedCommit?.parents || []).map((parent) => `<span class="pill mono">${escapeHtml(parent.slice(0, 12))}</span>`).join(' ') || '<span class="muted">No parent data</span>';
+      return `
+        <div class="repo-page">
+          <div class="repo-hero">
+            <div class="repo-breadcrumbs">
+              <a href="./">repos</a>
+              <span>/</span>
+              <a href="${repoSelectionHref(repo, route)}">${escapeHtml(repo.name)}</a>
+              <span>/</span>
+              <span class="mono">${escapeHtml(selectedSha.slice(0, 12))}</span>
+            </div>
+            <div class="repo-title-row">
+              <div class="repo-title">
+                <div class="repo-meta">
+                  <h2>${escapeHtml(selectedSha.slice(0, 12))}</h2>
+                  <span class="health-badge ${healthClass}"><span class="health-dot"></span></span>
+                </div>
+                <div class="small muted">${escapeHtml(selectedCommit?.summary || 'Selected commit')}</div>
+                <div class="repo-meta">
+                  <span class="pill">Author: ${escapeHtml(selectedCommit?.author || 'n/a')}</span>
+                  <span class="pill">Date: ${escapeHtml(selectedCommit?.date || 'n/a')}</span>
+                </div>
+              </div>
+              <div class="actions">
+                <a class="button" href="${repoCommitsHref(repo, route)}">Back to commits</a>
+                <a class="button" href="${repoSelectionHref(repo, route)}">Back to code</a>
+                <a class="button" href="${repo.url.replace(/\/$/, '')}/commit/${encodeURIComponent(selectedSha)}" target="_blank" rel="noreferrer noopener">Open upstream</a>
+              </div>
+            </div>
+            <div class="repo-tabs" role="tablist" aria-label="Repository sections">
+              <a class="repo-tab" href="${repoSelectionHref(repo, route)}">Code</a>
+              <a class="repo-tab" href="${repoCommitsHref(repo, route)}">Commits</a>
+              <a class="repo-tab active" href="${repoCommitHref(repo, route)}">Commit</a>
+            </div>
+          </div>
+
+          <div class="repo-layout">
+            <div class="repo-main">
+              <div class="repo-sidebar-card">
+                <div class="row" style="justify-content:space-between; align-items:center;">
+                  <h3 style="margin:0;">Commit message</h3>
+                  <span class="muted small mono">${escapeHtml(selectedSha.slice(0, 12))}</span>
+                </div>
+                <div style="margin-top:10px; white-space:pre-wrap;">${escapeHtml(selectedCommit?.message || 'n/a')}</div>
+              </div>
+              <div class="repo-sidebar-card" style="margin-top:14px;">
+                <div class="row" style="justify-content:space-between; align-items:center;">
+                  <h3 style="margin:0;">Files at commit</h3>
+                  <span class="muted small">${data.files.length} entries</span>
+                </div>
+                <div style="margin-top:10px;">${renderFileList(data.files)}</div>
+              </div>
+            </div>
+            <aside class="repo-sidebar">
+              <div class="repo-sidebar-card">
+                <div class="muted small">Parents</div>
+                <div class="row" style="margin-top:8px; gap:6px; flex-wrap:wrap;">${parentList}</div>
+              </div>
+              <div class="repo-sidebar-card">
+                <div class="muted small">Recent commits</div>
+                <div style="margin-top:10px;">${renderRecentCommits(repo, data.commits, route)}</div>
+              </div>
+            </aside>
+          </div>
+        </div>
       `;
     }
 
@@ -867,7 +984,7 @@
                     <h3 style="margin:0;">Commits</h3>
                     <span class="muted small">${commitCount} loaded</span>
                   </div>
-                  <div style="margin-top:10px;">${renderRecentCommits(data.commits, true)}</div>
+                  <div style="margin-top:10px;">${renderRecentCommits(repo, data.commits, route, true)}</div>
                 </div>
               ` : `
                 <div class="repo-sidebar-card">
@@ -882,7 +999,7 @@
                     <h3 style="margin:0;">Recent commits</h3>
                     <span class="muted small">${commitCount} loaded</span>
                   </div>
-                  <div style="margin-top:10px;">${renderRecentCommits(data.commits)}</div>
+                  <div style="margin-top:10px;">${renderRecentCommits(repo, data.commits, route)}</div>
                 </div>
               `}
             </div>
@@ -937,7 +1054,9 @@
         const cache = loadRepoCache();
         const data = results && !Array.isArray(results) ? results : (cache[route.repo.name] || emptyRepoData());
         reposEl.className = '';
-        reposEl.innerHTML = renderRepoDetail(route.repo, data, route);
+        reposEl.innerHTML = route.view === 'commit'
+          ? renderCommitDetail(route.repo, data, route)
+          : renderRepoDetail(route.repo, data, route);
       } else if (route.repoName) {
         reposEl.className = '';
         renderRepoNotFound(route);
