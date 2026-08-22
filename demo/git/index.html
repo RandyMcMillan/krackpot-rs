@@ -202,6 +202,13 @@
       return 'health-idle';
     }
 
+    function repoCardStatusClass(status) {
+      if (status === 'ready') return 'health-available';
+      if (status === 'refreshing...' || status === 'cloning...' || status === 'fetching tags...' || status === 'reusing cached clone...') return 'health-checking';
+      if (status.startsWith('prepare failed:') || status.startsWith('refresh failed:') || status.startsWith('unavailable:')) return 'health-unavailable';
+      return 'health-idle';
+    }
+
     function remoteProbeUrl(repo) {
       return `${new URL(repo.url).origin}/favicon.ico`;
     }
@@ -367,7 +374,7 @@
               <a href="${card.repo.url}" target="_blank" rel="noreferrer noopener">${card.repo.url}</a>
             </div>
           </div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${card.status}</div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> <span class="health-badge ${repoCardStatusClass(card.status)}" title="${escapeHtml(card.status)}"><span class="health-dot"></span></span></div>
           <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${card.ref}</span></div>
           <div class="small" style="margin-top:4px;"><span class="muted">Selected:</span> <span class="mono">${escapeHtml(card.selectedRef)}</span></div>
           <div class="small" style="margin-top:8px;">${card.latestHtml}</div>
