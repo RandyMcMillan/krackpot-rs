@@ -105,24 +105,10 @@
 
   <div class="grid" id="repos"></div>
 
-  <div class="sticky-footer">
-    <div class="sticky-footer-inner small muted">
-      <div class="footer-header">
-        <div class="footer-status-wrap">
-          <span id="footerStatus" class="status status-idle" title="git viewer: starting..."><span class="status-dot"></span></span>
-        </div>
-        <div class="footer-log-wrap">
-          <button id="footerToggle" class="footer-toggle" type="button" aria-expanded="false" aria-controls="footerLogPanel">
-            <span id="footerChevron" class="footer-chevron">▸</span>
-            <span>Logger</span>
-          </button>
-        </div>
-      </div>
-      <div id="footerLogPanel" class="footer-log" hidden></div>
-    </div>
-  </div>
+  <footer id="pageFooter"></footer>
 
   <script type="module">
+    import { createLoggerFooter } from '../shared/logger-footer.js';
     import { resolveHref } from '../shared/page-path.js';
     import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
     import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
@@ -189,45 +175,19 @@
     repos.forEach((repo) => warmFavicon(`${new URL(repo.url).origin}/favicon.ico`));
 
     const statusEl = document.getElementById('status');
-    const footerStatusEl = document.getElementById('footerStatus');
-    const footerToggleEl = document.getElementById('footerToggle');
-    const footerChevronEl = document.getElementById('footerChevron');
-    const footerLogPanelEl = document.getElementById('footerLogPanel');
     const reposEl = document.getElementById('repos');
     const repoState = new Map();
-    const footerLogs = [];
-    let footerOpen = false;
+    const footer = createLoggerFooter(document.getElementById('pageFooter'), {
+      title: 'Logger',
+      initialState: 'idle',
+      initialTitle: 'starting...',
+    });
     const refreshBtn = document.getElementById('refreshBtn');
-
-    function addFooterLog(text) {
-      footerLogs.push({
-        time: new Date().toLocaleTimeString(),
-        text,
-      });
-      while (footerLogs.length > 24) footerLogs.shift();
-      renderFooterLog();
-    }
-
-    function renderFooterLog() {
-      footerChevronEl.className = `footer-chevron${footerOpen ? ' open' : ''}`;
-      footerToggleEl.setAttribute('aria-expanded', footerOpen ? 'true' : 'false');
-      footerLogPanelEl.hidden = !footerOpen;
-      footerLogPanelEl.innerHTML = footerLogs.length
-        ? footerLogs.map((entry) => `
-          <div class="footer-log-item">
-            <span class="footer-log-time mono">${escapeHtml(entry.time)}</span>
-            <span>${escapeHtml(entry.text)}</span>
-          </div>
-        `).join('')
-        : '<div class="muted">No log entries yet.</div>';
-    }
 
     function setStatus(text, state = 'idle') {
       statusEl.className = `status status-${state}`;
-      footerStatusEl.className = `status status-${state}`;
       statusEl.title = text;
-      footerStatusEl.title = `git viewer: ${text}`;
-      addFooterLog(text);
+      footer.log('git', text, state);
     }
 
     function setRepoStatus(repoName, text) {
@@ -385,7 +345,8 @@
       try {
         await fs.promises.mkdir(path, { recursive: true });
       } catch (e) {
-        if (e?.name !== 'AlreadyExists' && e?.code !== 'EEXIST') {
+        const message = String(e?.message || '');
+        if (e?.name !== 'AlreadyExists' && e?.code !== 'EEXIST' && !message.includes('EEXIST')) {
           throw e;
         }
       }
@@ -837,6 +798,7 @@
       } catch (e) {
         if (route) setRepoHealth(repo.name, 'unavailable');
         setRepoStatus(repo.name, `refresh failed: ${e.message}`);
+        footer.log('git', `refresh failed: ${e.message}`, 'unavailable');
         console.warn('git viewer failed:', e);
       }
     }
@@ -912,11 +874,6 @@
       }
     }
 
-    footerToggleEl.addEventListener('click', () => {
-      footerOpen = !footerOpen;
-      renderFooterLog();
-    });
-    renderFooterLog();
     refreshBtn.addEventListener('click', () => { void refreshList(); });
     renderApp();
     void refresh();

@@ -41,7 +41,7 @@ site: wasm
 	mkdir -p site
 	cp demo/index.html site/index.html
 	mkdir -p site/shared
-	cp demo/shared/page-path.js site/shared/page-path.js
+	cp demo/shared/*.js site/shared/
 	mkdir -p site/git
 	cp demo/git/index.html site/git/index.html
 

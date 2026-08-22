@@ -55,7 +55,12 @@
   input, select, button { background:var(--input-bg); color:var(--input-fg); border:1px solid var(--border); border-radius:6px; padding:8px; }
   button { cursor:pointer; background:var(--button-bg); border-color:var(--border-strong); }
   button:hover { background:var(--button-hover); }
-  .status { padding:8px 10px; border-radius:6px; margin-top:10px; }
+  .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; margin-top:10px; background:var(--status-bg); }
+  .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
+  .status-idle { color: var(--muted); }
+  .status-checking { color: #f59e0b; }
+  .status-available { color: #22c55e; }
+  .status-unavailable { color: #ef4444; }
   .ok { background:var(--status-ok); }
   .err { background:var(--status-err); }
   .grid { display:grid; grid-template-columns: 1fr 2fr; gap:14px; }
@@ -78,6 +83,16 @@
     .close-btn { margin-left:auto; }
     .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--surface-strong); border-top:1px solid var(--border); padding:10px 20px; z-index:40; }
     .sticky-footer-inner { max-width:1100px; margin:0 auto; }
+    .footer-header { display:flex; align-items:center; gap:10px; }
+    .footer-toggle { display:inline-flex; align-items:center; gap:8px; background:transparent; border:0; color:inherit; padding:0; }
+    .footer-toggle:hover { background:transparent; }
+    .footer-status-wrap { flex:0 0 auto; }
+    .footer-log-wrap { flex:1 1 auto; min-width:0; }
+    .footer-chevron { display:inline-block; width:1em; transition:transform .15s ease; }
+    .footer-chevron.open { transform:rotate(90deg); }
+    .footer-log { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); max-height:180px; overflow:auto; }
+    .footer-log-item { display:flex; gap:8px; margin:0 0 6px; }
+    .footer-log-time { flex:0 0 auto; color:var(--muted); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
     @media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
@@ -236,7 +251,6 @@
     const resetBtnEl = document.getElementById('resetBtn');
     const seedBtnEl = document.getElementById('seedBtn');
     const ackRoundBtnEl = document.getElementById('ackRoundBtn');
-    const libp2pFooterStatusEl = document.getElementById('libp2pFooterStatus');
     const openGitViewerEl = document.getElementById('openGitViewer');
     if (openGitViewerEl) {
       openGitViewerEl.href = resolveHref('./git/');
@@ -394,15 +408,15 @@
     }
 
     function updateLibp2pFooter() {
-      if (!libp2pFooterStatusEl) return;
       const { loaded, failed, total } = libp2pModuleCounts;
       const moduleText = total ? `modules ${loaded}/${total}${failed ? ` (${failed} failed)` : ''}` : 'modules loading...';
       const peerText = libp2pPeerId && libp2pPeerId !== 'starting...' ? `libp2p: ${libp2pPeerId} | ` : 'libp2p: ';
-      libp2pFooterStatusEl.textContent = `${peerText}${moduleText}`;
+      window.__sharedFooter?.setState(total && failed ? 'unavailable' : (total && loaded === total ? 'available' : 'checking'), `${peerText}${moduleText}`);
     }
 
     function setLibp2pStatus(text) {
       libp2pPeerId = text;
+      window.__sharedFooter?.log('libp2p', text);
       updateLibp2pFooter();
       render();
     }
@@ -1196,15 +1210,10 @@
       setControlsEnabled(true);
     }
   </script>
-  <footer class="sticky-footer">
-    <div class="sticky-footer-inner small muted">
-      <span id="libp2pFooterStatus">libp2p: starting...</span>
-      <span id="gitFooterStatus" style="display:block; margin-top:4px;">git: starting...</span>
-      <span id="depsFooterStatus" style="display:block; margin-top:4px;">deps: starting...</span>
-    </div>
-  </footer>
+  <footer id="sharedFooter"></footer>
   <script type="module">
     // Step 25: preload libp2p modules so the footer can report availability.
+    import { createLoggerFooter } from './shared/logger-footer.js';
     const modules = [
       ['libp2p', 'https://esm.sh/libp2p'],
       ['@libp2p/interface', 'https://esm.sh/@libp2p/interface'],
@@ -1253,6 +1262,11 @@
       }
     }
 
+    window.__sharedFooter = createLoggerFooter(document.getElementById('sharedFooter'), {
+      title: 'Logger',
+      initialState: 'idle',
+      initialTitle: 'starting...',
+    });
     window.__libp2pModuleRegistry = registry;
     window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
   </script>
@@ -1262,7 +1276,6 @@
     import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
 
-    const gitFooterStatusEl = document.getElementById('gitFooterStatus');
     const fs = new LightningFS('fs');
     const dir = '/repo';
     const nostrDagDir = '/nostr-dag';
@@ -1291,7 +1304,7 @@
     }
 
     function setGitStatus(text) {
-      if (gitFooterStatusEl) gitFooterStatusEl.textContent = `git: ${text}`;
+      window.__sharedFooter?.log('git', text);
     }
 
     async function runGitWorkflow() {
@@ -1336,7 +1349,6 @@
     // Step 27: opportunistically cache shared dependencies for offline-ish reuse.
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
 
-    const depsFooterStatusEl = document.getElementById('depsFooterStatus');
     const depsFs = new LightningFS('deps');
     const depsDir = '/deps';
     const dependencyUrls = [
@@ -1376,7 +1388,7 @@
     ];
 
     function setDepsStatus(text) {
-      if (depsFooterStatusEl) depsFooterStatusEl.textContent = `deps: ${text}`;
+      window.__sharedFooter?.log('deps', text);
     }
 
     function safeFilename(url) {
