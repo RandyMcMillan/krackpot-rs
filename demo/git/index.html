@@ -271,7 +271,7 @@
     function createRepoCardModel(repo, data) {
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
       const selectedBranch = data.branches.includes(data.selectedRef) ? data.selectedRef : (data.branches[0] || '');
-      const selectedTag = data.tags.includes(data.selectedRef) ? data.selectedRef : (data.tags[0] || '');
+      const selectedTag = data.tags.includes(data.selectedRef) ? data.selectedRef : '';
 
       return {
         repo,
@@ -370,6 +370,43 @@
       return defaultRefForRefs(branches, tags);
     }
 
+    async function branchForCommit(repoDir, branches, commitOid) {
+      if (!commitOid || !branches.length) return '';
+      const matches = await Promise.all(branches.map(async (branch) => {
+        try {
+          const branchOid = await git.resolveRef({ fs, dir: repoDir, ref: branch });
+          return branchOid === commitOid ? branch : '';
+        } catch {
+          return '';
+        }
+      }));
+      return matches.find(Boolean) || '';
+    }
+
+    function selectedRefForRoute(route) {
+      if (route?.branch) return route.branch;
+      if (route?.tag) return route.tag;
+      return null;
+    }
+
+    function refCandidatesForRoute(route, branches, tags) {
+      if (route?.branch) {
+        return [
+          route.branch,
+          `origin/${route.branch}`,
+          `refs/remotes/origin/${route.branch}`,
+          `refs/heads/${route.branch}`,
+        ];
+      }
+      if (route?.tag) {
+        return [
+          route.tag,
+          `refs/tags/${route.tag}`,
+        ];
+      }
+      return [defaultRefForRefs(branches, tags), 'HEAD'];
+    }
+
     function fetchSelectionOptions(route) {
       if (route?.branch) {
         return { ref: route.branch, singleBranch: true };
@@ -431,14 +468,15 @@
       const tags = await git.listTags({ fs, dir: repo.dir }).catch(() => []);
       tags.sort((a, b) => a.localeCompare(b));
       const ref = resolveRefSelection(branches, tags, route || {});
-      const fallbackRef = defaultRefForRefs(branches, tags);
+      const selectedRef = selectedRefForRoute(route) || ref;
+      const candidates = refCandidatesForRoute(route, branches, tags);
       let commits = [];
-      let selectedRef = ref;
-      for (const candidate of [ref, fallbackRef, 'HEAD']) {
+      let resolvedRef = ref;
+      for (const candidate of candidates) {
         if (!candidate) continue;
         try {
           commits = await git.log({ fs, dir: repo.dir, ref: candidate, depth: 12 });
-          selectedRef = candidate;
+          resolvedRef = candidate;
           break;
         } catch {
           commits = [];
@@ -446,7 +484,10 @@
       }
       const latestCommit = commits[0] || null;
       const latest = latestCommit?.commit?.message || 'n/a';
-      const files = await git.listFiles({ fs, dir: repo.dir, ref: selectedRef }).catch(() => []);
+      const branchForSelection = route?.tag
+        ? await branchForCommit(repo.dir, branches, latestCommit?.oid || '')
+        : '';
+      const files = await git.listFiles({ fs, dir: repo.dir, ref: resolvedRef }).catch(() => []);
       return {
         latest,
         latestCommit: latestCommit ? createCommitSummary(latestCommit) : null,
@@ -454,8 +495,10 @@
         tags,
         branches: branches.sort((a, b) => a.localeCompare(b)),
         ref,
-        defaultRef: fallbackRef,
+        defaultRef: defaultRefForRefs(branches, tags),
         selectedRef,
+        resolvedRef,
+        branchForSelection,
         commits: commits.slice(0, 12).map(createCommitSummary),
       };
     }
@@ -489,9 +532,11 @@
     }
 
     function renderRepoDetail(repo, data, route) {
-      const branchSelected = route.branch && data.branches.includes(route.branch) ? route.branch : (data.branches.includes(data.selectedRef) ? data.selectedRef : '');
+      const branchSelected = route.branch
+        ? route.branch
+        : (route.tag ? (data.branchForSelection || '') : (data.branches.includes(data.selectedRef) ? data.selectedRef : ''));
       const tagSelected = route.tag && data.tags.includes(route.tag) ? route.tag : (data.tags.includes(data.selectedRef) ? data.selectedRef : '');
-      const currentRef = escapeHtml(data.selectedRef || data.ref || 'n/a');
+      const currentRef = escapeHtml(data.resolvedRef || data.selectedRef || data.ref || 'n/a');
       const currentCommit = data.latestCommit || null;
       const latestMessage = currentCommit ? currentCommit.summary : 'n/a';
       const commitCount = data.commits.length;
@@ -519,7 +564,7 @@
         </div>
         ${currentCommit ? `
           <div class="small" style="margin-top:6px;">
-            <span class="muted">Commit:</span> <span class="mono">${escapeHtml(currentCommit.oid.slice(0, 12))}</span>
+            <span class="muted">Commit:</span> <span class="mono">${escapeHtml(currentCommit?.oid ? currentCommit.oid.slice(0, 12) : 'n/a')}</span>
             <span class="muted">·</span> <span>${escapeHtml(currentCommit.author)}</span>
             <span class="muted">·</span> <span>${escapeHtml(currentCommit.date)}</span>
           </div>
@@ -547,7 +592,7 @@
         <div class="detail-grid" style="margin-top:14px;">
           <div class="detail-shell">
             <div class="row" style="justify-content:space-between; align-items:center;">
-              <h3 style="margin:0;">Files</h3>
+              <h3 style="margin:0;">Files at <span class="mono">${currentRef}</span></h3>
               <span class="muted small">${data.files.length} entries</span>
             </div>
             <div style="margin-top:10px;">${renderFileList(data.files)}</div>
@@ -610,19 +655,18 @@
       });
       reposEl.querySelectorAll('[data-branch-select], [data-tag-select]').forEach((select) => {
         select.addEventListener('change', async () => {
-          const repo = repos.find((entry) => entry.name === select.getAttribute('data-branch-select') || select.getAttribute('data-tag-select'));
+          const repoName = select.getAttribute('data-branch-select') || select.getAttribute('data-tag-select');
+          const repo = repos.find((entry) => entry.name === repoName);
           if (!repo) return;
-          const branchSelect = reposEl.querySelector(`[data-branch-select="${repo.name}"]`);
-          const tagSelect = reposEl.querySelector(`[data-tag-select="${repo.name}"]`);
+          const isBranchSelect = !!select.getAttribute('data-branch-select');
           const nextRoute = {
-            branch: branchSelect && branchSelect.value ? branchSelect.value : null,
-            tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+            repo,
+            repoName: repo.name,
+            branch: isBranchSelect && select.value ? select.value : null,
+            tag: !isBranchSelect && select.value ? select.value : null,
           };
-          await ensureRepo(repo, nextRoute);
-          window.location.href = repoSelectionHref(repo, {
-            branch: branchSelect && branchSelect.value ? branchSelect.value : null,
-            tag: tagSelect && tagSelect.value ? tagSelect.value : null,
-          });
+          window.history.replaceState({}, '', repoSelectionHref(repo, nextRoute));
+          await refreshDetail(nextRoute);
         });
       });
     }
@@ -699,7 +743,7 @@
       }
     }
 
-    refreshBtn.addEventListener('click', () => { void refresh(); });
+    refreshBtn.addEventListener('click', () => { void refreshList(); });
     renderApp();
     void refresh();
   </script>
