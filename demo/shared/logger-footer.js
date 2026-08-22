@@ -87,7 +87,7 @@ export function createLoggerFooter(root, options = {}) {
   const logEl = root.querySelector('[data-footer-log]');
   const logs = [];
   let open = false;
-  let level = normalizeLevel(options.initialLevel || 'info');
+  let level = normalizeLevel(options.initialLevel || 'none');
 
   function renderLevelPills() {
     levelEl.innerHTML = LOG_LEVELS.map((entryLevel) => `
@@ -152,6 +152,8 @@ export function createLoggerFooter(root, options = {}) {
     setState,
     setLevel(nextLevel) {
       level = normalizeLevel(nextLevel);
+      // Show the log panel as soon as the user picks a real level; hide it again for `none`.
+      open = level !== 'none';
       render();
     },
     getLevel() {
