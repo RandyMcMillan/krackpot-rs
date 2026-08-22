@@ -44,7 +44,9 @@
       --shadow: rgba(15,23,42,.12);
     }
   }
-  body { font-family: system-ui, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px 20px 80px; background:var(--bg); color:var(--fg); }
+  * { box-sizing:border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; line-height:1.6; margin: 0; padding: 0 0 80px; background:var(--bg); color:var(--fg); }
+  .page-content { max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem; }
   h1 { margin: 0 0 6px; color: var(--accent); }
   .muted { color:var(--muted); }
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin:14px 0; }
@@ -78,6 +80,14 @@
   button:hover, a.button:hover { background:var(--button-hover); }
   .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--surface-strong); border-top:1px solid var(--border); padding:10px 20px; z-index:40; }
   .sticky-footer-inner { max-width:1200px; margin:0 auto; }
+  .sticky-header { position:sticky; top:0; width:100%; z-index:1000; background:var(--surface-strong); color:var(--fg); box-shadow:0 2px 10px var(--shadow); }
+  .header-container { display:flex; justify-content:space-between; align-items:center; max-width:1200px; margin:0 auto; padding:1rem 2rem; gap:1rem; }
+  .logo { font-size:1.5rem; font-weight:bold; color:var(--accent); }
+  .header-subtitle { margin-top:4px; }
+  .nav-links { display:flex; gap:1.5rem; list-style:none; margin:0; padding:0; flex-wrap:wrap; }
+  .nav-links a { color:var(--fg); text-decoration:none; transition:color .2s ease; }
+  .nav-links a:hover { color:var(--accent); }
+  .nav-link.current { color:var(--accent); font-weight:600; }
   .footer-header { display:flex; align-items:center; gap:10px; }
   .footer-toggle { display:inline-flex; align-items:center; gap:8px; background:transparent; border:0; color:inherit; padding:0; }
   .footer-toggle:hover { background:transparent; }
@@ -98,6 +108,7 @@
 </head>
 <body>
   <header id="sharedHeader"></header>
+  <main class="page-content">
 
   <div class="panel">
     <div class="row">
@@ -108,12 +119,26 @@
 
   <div class="grid" id="repos"></div>
 
+  </main>
+
   <footer id="pageFooter"></footer>
 
   <script type="module">
     import { createSharedHeader } from '../shared/page-header.mjs';
-    import { createLoggerFooter } from '../shared/logger-footer.js';
     import { resolveHref } from '../shared/page-path.js';
+
+    createSharedHeader(document.getElementById('sharedHeader'), {
+      title: 'nostr-dag Git Viewer',
+      subtitleHtml: 'Browse cloned repositories in the browser. Endpoint: <span class="mono">/git/</span>',
+      navItems: [
+        { label: 'Demo', href: resolveHref('../', window.location.href) },
+        { label: 'Git viewer', current: true },
+      ],
+    });
+  </script>
+
+  <script type="module">
+    import { createLoggerFooter } from '../shared/logger-footer.js';
     import { createGitProgressReporter } from '../shared/git-progress.mjs';
     import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
     import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
@@ -186,14 +211,6 @@
       title: 'Logger',
       initialState: 'idle',
       initialTitle: 'starting...',
-    });
-    createSharedHeader(document.getElementById('sharedHeader'), {
-      title: 'nostr-dag Git Viewer',
-      subtitleHtml: 'Browse cloned repositories in the browser. Endpoint: <span class="mono">/git/</span>',
-      navItems: [
-        { label: 'Demo', href: resolveHref('../', window.location.href) },
-        { label: 'Git viewer', current: true },
-      ],
     });
     const refreshBtn = document.getElementById('refreshBtn');
 

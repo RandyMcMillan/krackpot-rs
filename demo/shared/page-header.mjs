@@ -20,33 +20,34 @@ export function createSharedHeader(root, options = {}) {
 
   const title = options.title || 'nostr-dag';
   const subtitleHtml = options.subtitleHtml || '';
-  const actionsHtml = options.actionsHtml || '';
   const navItems = Array.isArray(options.navItems) ? options.navItems : [];
 
+  root.classList.add('sticky-header');
   root.innerHTML = `
-    <header class="panel" style="position:sticky; top:0; z-index:45; backdrop-filter:blur(8px);">
-      <div class="row" style="justify-content:space-between; align-items:flex-start;">
-        <div>
-          <h1>${escapeHtml(title)}</h1>
-          ${subtitleHtml ? `<div class="muted">${subtitleHtml}</div>` : ''}
-        </div>
-        ${actionsHtml ? `<div class="row" style="justify-content:flex-end;">${actionsHtml}</div>` : ''}
+    <div class="header-container">
+      <div>
+        <div class="logo">${escapeHtml(title)}</div>
+        ${subtitleHtml ? `<div class="muted header-subtitle">${subtitleHtml}</div>` : ''}
       </div>
       ${navItems.length ? `
-        <nav class="row" aria-label="Primary navigation" style="margin-top:10px;">
-          ${navItems
-            .map((item) => {
-              const label = escapeHtml(item.label || '');
-              const href = escapeHtml(item.href || '#');
-              const current = item.current ? ' aria-current="page"' : '';
-              return item.current
-                ? `<span class="button" aria-current="page">${label}</span>`
-                : `<a class="button" href="${href}"${current}>${label}</a>`;
-            })
-            .join('')}
+        <nav aria-label="Primary navigation">
+          <ul class="nav-links">
+            ${navItems
+              .map((item) => {
+                const label = escapeHtml(item.label || '');
+                const href = escapeHtml(item.href || '#');
+                const current = item.current ? ' aria-current="page"' : '';
+                return `<li>${
+                  item.current
+                    ? `<span class="nav-link current"${current}>${label}</span>`
+                    : `<a href="${href}"${current}>${label}</a>`
+                }</li>`;
+              })
+              .join('')}
+          </ul>
         </nav>
       ` : ''}
-    </header>
+    </div>
   `;
 
   return {

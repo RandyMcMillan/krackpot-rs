@@ -47,7 +47,9 @@
       --shadow: rgba(15,23,42,.12);
     }
   }
-  body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px 20px 88px; background:var(--bg); color:var(--fg); }
+  * { box-sizing:border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; line-height:1.6; margin: 0; padding: 0 0 88px; background:var(--bg); color:var(--fg); }
+  .page-content { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
   h1 { margin: 0 0 6px; color: var(--accent); }
   .muted { color:var(--muted); }
   .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin:14px 0; }
@@ -83,6 +85,14 @@
     .close-btn { margin-left:auto; }
     .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--surface-strong); border-top:1px solid var(--border); padding:10px 20px; z-index:40; }
     .sticky-footer-inner { max-width:1100px; margin:0 auto; }
+    .sticky-header { position:sticky; top:0; width:100%; z-index:1000; background:var(--surface-strong); color:var(--fg); box-shadow:0 2px 10px var(--shadow); }
+    .header-container { display:flex; justify-content:space-between; align-items:center; max-width:1100px; margin:0 auto; padding:1rem 2rem; gap:1rem; }
+    .logo { font-size:1.5rem; font-weight:bold; color:var(--accent); }
+    .header-subtitle { margin-top:4px; }
+    .nav-links { display:flex; gap:1.5rem; list-style:none; margin:0; padding:0; flex-wrap:wrap; }
+    .nav-links a { color:var(--fg); text-decoration:none; transition:color .2s ease; }
+    .nav-links a:hover { color:var(--accent); }
+    .nav-link.current { color:var(--accent); font-weight:600; }
     .footer-header { display:flex; align-items:center; gap:10px; }
     .footer-toggle { display:inline-flex; align-items:center; gap:8px; background:transparent; border:0; color:inherit; padding:0; }
     .footer-toggle:hover { background:transparent; }
@@ -105,8 +115,9 @@
   </head>
   <body>
     <header id="sharedHeader"></header>
+    <main class="page-content">
 
-  <div class="panel">
+    <div class="panel">
     <!-- Step 1: load the app and keep the DAG controls visible up front. -->
     <div class="row">
       <button id="resetBtn">Reset DAG</button>
@@ -180,10 +191,27 @@
     </div>
   </div>
 
+  </main>
+
   <script type="module">
-    // Step 4: import the WASM DAG and browser-only Nostr/libp2p helpers.
     import { createSharedHeader } from './shared/page-header.mjs';
     import { resolveHref } from './shared/page-path.js';
+
+    createSharedHeader(document.getElementById('sharedHeader'), {
+      title: 'nostr-dag',
+      subtitleHtml: `
+        This page runs the Rust DAG logic in WASM and lets you create Nostr events locally.
+        <div class="small muted" style="margin-top:6px;">Browser publisher sends federation ack events to public relays too.</div>
+      `,
+      navItems: [
+        { label: 'Demo', current: true },
+        { label: 'Git viewer', href: resolveHref('./git/', window.location.href) },
+      ],
+    });
+  </script>
+
+  <script type="module">
+    // Step 4: import the WASM DAG and browser-only Nostr/libp2p helpers.
     import init, { WasmDag } from './pkg/nostr_dag.js';
     import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
     import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
@@ -1261,22 +1289,6 @@
       title: 'Logger',
       initialState: 'idle',
       initialTitle: 'starting...',
-    });
-    createSharedHeader(document.getElementById('sharedHeader'), {
-      title: 'nostr-dag',
-      subtitleHtml: `
-        <div>This page runs the Rust DAG logic in WASM and lets you create Nostr events locally.</div>
-        <div class="small muted" style="margin-top:6px;">Browser publisher sends federation ack events to public relays too.</div>
-      `,
-      actionsHtml: `
-        <a href="https://github.com/RandyMcMillan/nostr-dag/actions/workflows/ci.yml">
-          <img src="https://github.com/RandyMcMillan/nostr-dag/actions/workflows/ci.yml/badge.svg" alt="CI" />
-        </a>
-      `,
-      navItems: [
-        { label: 'Demo', current: true },
-        { label: 'Git viewer', href: resolveHref('./git/', window.location.href) },
-      ],
     });
     window.__libp2pModuleRegistry = registry;
     window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
