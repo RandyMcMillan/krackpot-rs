@@ -1048,7 +1048,6 @@
                 <details>
                   <summary style="cursor:pointer;">
                     <span class="row" style="justify-content:space-between; align-items:center; width:100%;">
-                      <a class="button" href="${repoBrowseAtCommitHref(repo, { branch: route.branch || null, tag: route.tag || null, commit: selectedSha })}">Browse at commit</a>
                       <span class="muted small">Files at commit · ${data.files.length} entries</span>
                     </span>
                   </summary>
@@ -1060,6 +1059,9 @@
               <div class="repo-sidebar-card">
                 <div class="muted small">Parents</div>
                 <div class="row" style="margin-top:8px; gap:6px; flex-wrap:wrap;">${parentList}</div>
+                <div style="margin-top:12px;">
+                  <a class="button" href="${repoBrowseAtCommitHref(repo, { branch: route.branch || null, tag: route.tag || null, commit: selectedSha })}">Browse at commit</a>
+                </div>
               </div>
               <div class="repo-sidebar-card">
                 <div class="muted small">Recent commits</div>
