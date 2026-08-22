@@ -52,7 +52,7 @@ The Git viewer now supports a repo detail view on the same static page:
 
 This stays on the static `/git/` route so it works with the local file server and Safari without requiring deep-link rewrites.
 
-The shared logger now surfaces `isomorphic-git` clone/fetch progress at trace level, and `test/git-progress.test.mjs` locks the progress text and dedupe behavior in place.
+The demo and Git viewer now share the same header/navigation chrome, and the shared logger footer still surfaces `isomorphic-git` clone/fetch progress at trace level. `test/git-progress.test.mjs` locks the progress text and dedupe behavior in place.
 The shared browser helpers are copied into `site/shared/`, and the local server serves `.mjs` modules as JavaScript so Pages and preview stay aligned.
 
 ## Project structure

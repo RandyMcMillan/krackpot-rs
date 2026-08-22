@@ -97,13 +97,11 @@
 </style>
 </head>
 <body>
-  <h1>nostr-dag Git Viewer</h1>
-  <div class="muted">Browse cloned repositories in the browser. Endpoint: <span class="mono">/git/</span></div>
+  <header id="sharedHeader"></header>
 
   <div class="panel">
     <div class="row">
       <button id="refreshBtn" type="button">Refresh repos</button>
-      <a class="button" href="../"><span>Back to demo</span></a>
       <span id="status" class="status status-idle" title="Starting..."><span class="status-dot"></span></span>
     </div>
   </div>
@@ -113,6 +111,7 @@
   <footer id="pageFooter"></footer>
 
   <script type="module">
+    import { createSharedHeader } from '../shared/page-header.mjs';
     import { createLoggerFooter } from '../shared/logger-footer.js';
     import { resolveHref } from '../shared/page-path.js';
     import { createGitProgressReporter } from '../shared/git-progress.mjs';
@@ -187,6 +186,14 @@
       title: 'Logger',
       initialState: 'idle',
       initialTitle: 'starting...',
+    });
+    createSharedHeader(document.getElementById('sharedHeader'), {
+      title: 'nostr-dag Git Viewer',
+      subtitleHtml: 'Browse cloned repositories in the browser. Endpoint: <span class="mono">/git/</span>',
+      navItems: [
+        { label: 'Demo', href: resolveHref('../', window.location.href) },
+        { label: 'Git viewer', current: true },
+      ],
     });
     const refreshBtn = document.getElementById('refreshBtn');
 
