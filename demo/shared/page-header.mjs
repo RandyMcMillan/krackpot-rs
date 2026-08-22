@@ -24,7 +24,7 @@ export function createSharedHeader(root, options = {}) {
   const navItems = Array.isArray(options.navItems) ? options.navItems : [];
 
   root.innerHTML = `
-    <header class="panel">
+    <header class="panel" style="position:sticky; top:0; z-index:45; backdrop-filter:blur(8px);">
       <div class="row" style="justify-content:space-between; align-items:flex-start;">
         <div>
           <h1>${escapeHtml(title)}</h1>
