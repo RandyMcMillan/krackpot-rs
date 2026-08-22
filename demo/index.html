@@ -1309,7 +1309,7 @@
     }
 
     function setGitStatus(text) {
-      window.__sharedFooter?.log('git', text);
+      window.__sharedFooter?.log('git', text, 'trace');
     }
 
     async function runGitWorkflow() {

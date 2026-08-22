@@ -192,7 +192,7 @@
     function setStatus(text, state = 'idle') {
       statusEl.className = `status status-${state}`;
       statusEl.title = text;
-      footer.log('git', text, state);
+      footer.log('git', text, 'trace', state);
     }
 
     function setRepoStatus(repoName, text) {
@@ -803,7 +803,7 @@
       } catch (e) {
         if (route) setRepoHealth(repo.name, 'unavailable');
         setRepoStatus(repo.name, `refresh failed: ${e.message}`);
-        footer.log('git', `refresh failed: ${e.message}`, 'unavailable');
+        footer.log('git', `refresh failed: ${e.message}`, 'trace', 'unavailable');
         console.warn('git viewer failed:', e);
       }
     }
