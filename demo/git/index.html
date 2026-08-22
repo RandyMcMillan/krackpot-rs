@@ -87,6 +87,11 @@
   .repo-commit-top { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .repo-commit-summary { margin-top:6px; font-weight:500; }
   .repo-commit-meta { margin-top:6px; color:var(--muted); font-size:12px; }
+  .repo-diff-file { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:10px; margin-top:10px; }
+  .repo-diff-body { margin:10px 0 0; padding:10px; overflow:auto; white-space:pre; background:var(--surface-strong); border-radius:6px; font-size:12px; line-height:1.45; }
+  .repo-diff-body .add { color:#22c55e; }
+  .repo-diff-body .del { color:#ef4444; }
+  .repo-diff-body .ctx { color:var(--fg); }
   .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; background:var(--status-bg); }
   .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
   .status-idle { color: var(--muted); }
@@ -615,6 +620,81 @@
       return entries;
     }
 
+    function decodeBlob(bytes) {
+      if (!bytes) return '';
+      return new TextDecoder('utf-8').decode(bytes);
+    }
+
+    function isBinaryBytes(bytes) {
+      return bytes && Array.from(bytes).includes(0);
+    }
+
+    function splitLines(text) {
+      return String(text || '').replace(/\r\n/g, '\n').split('\n');
+    }
+
+    function diffLines(beforeText, afterText) {
+      const before = splitLines(beforeText);
+      const after = splitLines(afterText);
+      const rows = Array.from({ length: before.length + 1 }, () => Array(after.length + 1).fill(0));
+      for (let i = before.length - 1; i >= 0; i -= 1) {
+        for (let j = after.length - 1; j >= 0; j -= 1) {
+          rows[i][j] = before[i] === after[j]
+            ? rows[i + 1][j + 1] + 1
+            : Math.max(rows[i + 1][j], rows[i][j + 1]);
+        }
+      }
+      const lines = [];
+      let i = 0;
+      let j = 0;
+      while (i < before.length && j < after.length) {
+        if (before[i] === after[j]) {
+          lines.push(` ${before[i]}`);
+          i += 1;
+          j += 1;
+        } else if (rows[i + 1][j] >= rows[i][j + 1]) {
+          lines.push(`-${before[i]}`);
+          i += 1;
+        } else {
+          lines.push(`+${after[j]}`);
+          j += 1;
+        }
+      }
+      while (i < before.length) {
+        lines.push(`-${before[i]}`);
+        i += 1;
+      }
+      while (j < after.length) {
+        lines.push(`+${after[j]}`);
+        j += 1;
+      }
+      return lines;
+    }
+
+    async function readTreeBlobText(repo, treeOid, filepath) {
+      const blob = await git.readBlob({ fs, dir: repo.dir, oid: treeOid, filepath }).catch(() => null);
+      if (!blob?.blob) return null;
+      return blob.blob;
+    }
+
+    async function buildPatchForPath(repo, currentTreeOid, parentTreeOid, path, status) {
+      const currentBytes = currentTreeOid ? await readTreeBlobText(repo, currentTreeOid, path) : null;
+      const parentBytes = parentTreeOid ? await readTreeBlobText(repo, parentTreeOid, path) : null;
+      if ((currentBytes && isBinaryBytes(currentBytes)) || (parentBytes && isBinaryBytes(parentBytes))) {
+        return ['Binary files differ'];
+      }
+      const before = parentBytes ? decodeBlob(parentBytes) : '';
+      const after = currentBytes ? decodeBlob(currentBytes) : '';
+      const prefix = status === 'added' ? ['--- /dev/null', `+++ b/${path}`]
+        : status === 'deleted' ? [`--- a/${path}`, '+++ /dev/null']
+          : [`--- a/${path}`, `+++ b/${path}`];
+      return [
+        `diff --git a/${path} b/${path}`,
+        ...prefix,
+        ...diffLines(before, after),
+      ];
+    }
+
     async function buildCommitDiff(repo, commitOid, parentOid = null) {
       if (!commitOid) return [];
       const commit = await git.readCommit({ fs, dir: repo.dir, oid: commitOid }).catch(() => null);
@@ -629,16 +709,31 @@
       const currentByPath = new Map(currentEntries.map((entry) => [entry.path, entry]));
       const parentByPath = new Map(parentEntries.map((entry) => [entry.path, entry]));
       const paths = [...new Set([...currentByPath.keys(), ...parentByPath.keys()])].sort((a, b) => a.localeCompare(b));
-      return paths.flatMap((path) => {
+      const diffs = [];
+      for (const path of paths) {
         const current = currentByPath.get(path) || null;
         const parent = parentByPath.get(path) || null;
-        if (current && !parent) return [{ path, status: 'added', current, parent: null }];
-        if (!current && parent) return [{ path, status: 'deleted', current: null, parent }];
-        if (current && parent && current.oid !== parent.oid) {
-          return [{ path, status: 'modified', current, parent }];
+        if (current && !parent) {
+          diffs.push({
+            path,
+            status: 'added',
+            patch: await buildPatchForPath(repo, commitTreeOid, null, path, 'added'),
+          });
+        } else if (!current && parent) {
+          diffs.push({
+            path,
+            status: 'deleted',
+            patch: await buildPatchForPath(repo, null, parentTreeOid, path, 'deleted'),
+          });
+        } else if (current && parent && current.oid !== parent.oid) {
+          diffs.push({
+            path,
+            status: 'modified',
+            patch: await buildPatchForPath(repo, commitTreeOid, parentTreeOid, path, 'modified'),
+          });
         }
-        return [];
-      });
+      }
+      return diffs;
     }
 
     const gitProgressReporters = new Map();
@@ -876,14 +971,12 @@
       const parentList = (selectedCommit?.parents || []).map((parent) => `<span class="pill mono">${escapeHtml(parent.slice(0, 12))}</span>`).join(' ') || '<span class="muted">No parent data</span>';
       const diffList = data.commitDiff.length
         ? data.commitDiff.map((entry) => `
-          <div class="repo-commit-item">
+          <div class="repo-diff-file">
             <div class="repo-commit-top">
               <div class="repo-commit-summary">${entry.status === 'added' ? '+' : entry.status === 'deleted' ? '−' : '±'} ${escapeHtml(entry.path)}</div>
               <span class="muted small">${escapeHtml(entry.status)}</span>
             </div>
-            <div class="repo-commit-meta mono">
-              ${escapeHtml((entry.parent?.oid || '').slice(0, 12) || 'n/a')} → ${escapeHtml((entry.current?.oid || '').slice(0, 12) || 'n/a')}
-            </div>
+            <pre class="repo-diff-body">${escapeHtml(entry.patch.join('\n'))}</pre>
           </div>
         `).join('')
         : '<div class="detail-empty muted">No file changes found.</div>';
