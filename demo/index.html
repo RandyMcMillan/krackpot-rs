@@ -3,39 +3,80 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <link rel="icon" href="/favicon.ico" />
-  <title>nostr-dag Demo</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px 20px 88px; background:#0f172a; color:#e2e8f0; }
-    h1 { margin: 0 0 6px; color: #a78bfa; }
-    .muted { color:#94a3b8; }
-    .panel { background:#111827; border:1px solid #334155; border-radius:8px; padding:14px; margin:14px 0; }
-    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
-    input, select, button { background:#020617; color:#e2e8f0; border:1px solid #334155; border-radius:6px; padding:8px; }
-    button { cursor:pointer; background:#4c1d95; border-color:#6d28d9; }
-    button:hover { background:#5b21b6; }
-    .status { padding:8px 10px; border-radius:6px; margin-top:10px; }
-    .ok { background:#065f46; }
-    .err { background:#7f1d1d; }
-    .grid { display:grid; grid-template-columns: 1fr 2fr; gap:14px; }
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="/favicon.ico" />
+<title>nostr-dag Demo</title>
+<style>
+  /* Step 0: map the UI to system light/dark tokens. */
+  :root {
+    color-scheme: light dark;
+    --bg: #0f172a;
+    --fg: #e2e8f0;
+    --muted: #94a3b8;
+    --panel: #111827;
+    --surface: #0b1220;
+    --surface-strong: #020617;
+    --border: #334155;
+    --border-strong: #6d28d9;
+    --input-bg: #020617;
+    --input-fg: #e2e8f0;
+    --accent: #a78bfa;
+    --button-bg: #4c1d95;
+    --button-hover: #5b21b6;
+    --status-ok: #065f46;
+    --status-err: #7f1d1d;
+    --shadow: rgba(0,0,0,.45);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f8fafc;
+      --fg: #0f172a;
+      --muted: #475569;
+      --panel: #ffffff;
+      --surface: #f1f5f9;
+      --surface-strong: #e2e8f0;
+      --border: #cbd5e1;
+      --border-strong: #7c3aed;
+      --input-bg: #ffffff;
+      --input-fg: #0f172a;
+      --accent: #6d28d9;
+      --button-bg: #7c3aed;
+      --button-hover: #6d28d9;
+      --status-ok: #d1fae5;
+      --status-err: #fee2e2;
+      --shadow: rgba(15,23,42,.12);
+    }
+  }
+  body { font-family: system-ui, sans-serif; max-width: 1100px; margin: 0 auto; padding: 20px 20px 88px; background:var(--bg); color:var(--fg); }
+  h1 { margin: 0 0 6px; color: var(--accent); }
+  .muted { color:var(--muted); }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin:14px 0; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input, select, button { background:var(--input-bg); color:var(--input-fg); border:1px solid var(--border); border-radius:6px; padding:8px; }
+  button { cursor:pointer; background:var(--button-bg); border-color:var(--border-strong); }
+  button:hover { background:var(--button-hover); }
+  .status { padding:8px 10px; border-radius:6px; margin-top:10px; }
+  .ok { background:var(--status-ok); }
+  .err { background:var(--status-err); }
+  .grid { display:grid; grid-template-columns: 1fr 2fr; gap:14px; }
     .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
     .canonical { background:#065f46; }
     .pending { background:#78350f; }
     .njump-link { background:transparent; padding:0; color:#22c55e; text-decoration:none; }
     .njump-link:hover { text-decoration:underline; }
-    .event { border:1px solid #334155; border-radius:8px; padding:10px; margin-bottom:8px; background:#0b1220; }
-    .avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; border: 1px solid #334155; background: #020617; }
-    .profile-card { border:1px solid #334155; border-radius:10px; padding:10px; background:#0b1220; cursor:pointer; min-width:180px; }
+    .event { border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--surface); }
+    .avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; border: 1px solid var(--border); background: var(--surface-strong); }
+    .profile-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:var(--surface); cursor:pointer; min-width:180px; }
     .profile-card:hover { border-color:#8b5cf6; }
     .profile-card .avatar { width: 36px; height: 36px; margin-right: 0; }
     .profile-strip { display:flex; gap:10px; flex-wrap:wrap; }
     .modal-backdrop { position:fixed; inset:0; background:rgba(2,6,23,.72); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
     .modal-backdrop.open { display:flex; }
-    .modal { max-width:680px; width:100%; background:#111827; border:1px solid #334155; border-radius:12px; padding:16px; box-shadow:0 10px 40px rgba(0,0,0,.45); }
+    .modal { max-width:680px; width:100%; background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:0 10px 40px var(--shadow); }
     .modal h3 { margin-top:0; }
     .modal .avatar { width: 56px; height: 56px; margin-right: 12px; }
     .close-btn { margin-left:auto; }
-    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:#020617; border-top:1px solid #334155; padding:10px 20px; z-index:40; }
+    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--surface-strong); border-top:1px solid var(--border); padding:10px 20px; z-index:40; }
     .sticky-footer-inner { max-width:1100px; margin:0 auto; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
     .small { font-size:12px; }
