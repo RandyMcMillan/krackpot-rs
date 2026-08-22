@@ -156,6 +156,8 @@ fn content_type_for_path(path: &Path) -> &'static str {
     match path.extension().and_then(|ext| ext.to_str()).unwrap_or_default() {
         "html" => "text/html; charset=utf-8",
         "js" => "text/javascript; charset=utf-8",
+        // Shared browser modules use `.mjs` so local preview and Pages serve them as JavaScript.
+        "mjs" => "text/javascript; charset=utf-8",
         "wasm" => "application/wasm",
         "css" => "text/css; charset=utf-8",
         "json" => "application/json; charset=utf-8",
@@ -205,3 +207,17 @@ static FAVICON_ICO: &[u8] = &[
     0xF2, 0xBC, 0xB8, 0x00, 0xE4, 0xB2, 0xB1, 0x00, 0xD0, 0xA0, 0xA2, 0x00, 0xAA, 0x78, 0x82, 0x00,
     0x72, 0x42, 0x55, 0x00, 0x39, 0x18, 0x35, 0x00, 0x0F, 0x06, 0x1C, 0x00, 0x03, 0x01, 0x08, 0x00,
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::content_type_for_path;
+    use std::path::Path;
+
+    #[test]
+    fn serves_mjs_as_javascript() {
+        assert_eq!(
+            content_type_for_path(Path::new("site/shared/git-progress.mjs")),
+            "text/javascript; charset=utf-8"
+        );
+    }
+}
