@@ -581,6 +581,7 @@
     }
 
     const gitProgressReporters = new Map();
+    const GIT_HISTORY_DEPTH = 12;
 
     function getGitProgressReporter(repo, operation) {
       const key = `${repo.name}:${operation}`;
@@ -607,7 +608,7 @@
             corsProxy: 'https://cors.isomorphic-git.org',
             url,
             singleBranch: true,
-            depth: 1,
+            depth: route ? GIT_HISTORY_DEPTH : 1,
             onProgress: (progress) => {
               const message = getGitProgressReporter(repo, 'clone')(progress);
               if (message) {
@@ -647,6 +648,7 @@
         tags: true,
         force: true,
         prune: true,
+        depth: route ? GIT_HISTORY_DEPTH : undefined,
         onProgress,
         ...selection,
       });
@@ -676,7 +678,7 @@
       for (const candidate of candidates) {
         if (!candidate) continue;
         try {
-          commits = await git.log({ fs, dir: repo.dir, ref: candidate, depth: 12 });
+          commits = await git.log({ fs, dir: repo.dir, ref: candidate, depth: GIT_HISTORY_DEPTH });
           resolvedRef = candidate;
           break;
         } catch {
@@ -699,7 +701,7 @@
         for (const candidate of refCandidatesForRoute(route, branches, retryTags)) {
           if (!candidate) continue;
           try {
-            commits = await git.log({ fs, dir: repo.dir, ref: candidate, depth: 12 });
+            commits = await git.log({ fs, dir: repo.dir, ref: candidate, depth: GIT_HISTORY_DEPTH });
             resolvedRef = candidate;
             break;
           } catch {
@@ -747,13 +749,13 @@
       `).join('')}</ul>`;
     }
 
-    function renderRecentCommits(commits) {
+    function renderRecentCommits(commits, forceOpen = false) {
       const body = renderCommitList(commits);
       if (commits.length <= 5) {
         return body;
       }
       return `
-        <details class="small">
+        <details class="small"${forceOpen ? ' open' : ''}>
           <summary style="cursor:pointer;">Recent commits (${commits.length})</summary>
           <div style="margin-top:10px;">${body}</div>
         </details>
@@ -858,7 +860,7 @@
                     <h3 style="margin:0;">Commits</h3>
                     <span class="muted small">${commitCount} loaded</span>
                   </div>
-                  <div style="margin-top:10px;">${renderRecentCommits(data.commits)}</div>
+                  <div style="margin-top:10px;">${renderRecentCommits(data.commits, true)}</div>
                 </div>
               ` : `
                 <div class="repo-sidebar-card">
@@ -1031,31 +1033,35 @@
           footer.log('git', `checking ${repo.name}`, 'trace');
         });
         renderApp();
-        const results = await Promise.allSettled(repos.map(async (repo) => {
-          footer.log('git', `probing ${repo.name}`, 'trace');
-          const probe = probeRemoteHost(repo).catch(() => false);
-          footer.log('git', `ensuring ${repo.name}`, 'trace');
-          await ensureRepo(repo);
-          footer.log('git', `reading ${repo.name}`, 'trace');
-          const data = await readRepo(repo);
-          cacheRepoData(repo.name, data);
-          setRepoHealth(repo.name, (await probe) ? 'available' : 'unavailable');
-          setRepoStatus(repo.name, 'ready');
-          footer.log('git', `ready ${repo.name}`, 'trace');
-          return data;
-        }));
-        const cache = loadRepoCache();
-        const values = repos.map((repo, index) => {
-          if (results[index].status === 'fulfilled') {
-            return results[index].value;
+        const route = getRouteContext();
+        const orderedRepos = route.repo
+          ? [route.repo, ...repos.filter((repo) => repo.name !== route.repo.name)]
+          : [...repos];
+        const dataByRepo = new Map();
+        for (const repo of orderedRepos) {
+          const repoRoute = route.repo && repo.name === route.repo.name ? route : null;
+          try {
+            footer.log('git', `probing ${repo.name}`, 'trace');
+            const probe = probeRemoteHost(repo).catch(() => false);
+            footer.log('git', `ensuring ${repo.name}`, 'trace');
+            await ensureRepo(repo, repoRoute);
+            footer.log('git', `reading ${repo.name}`, 'trace');
+            const data = await readRepo(repo, repoRoute);
+            cacheRepoData(repo.name, data);
+            setRepoHealth(repo.name, (await probe) ? 'available' : 'unavailable');
+            setRepoStatus(repo.name, 'ready');
+            footer.log('git', `ready ${repo.name}`, 'trace');
+            dataByRepo.set(repo.name, data);
+          } catch (e) {
+            footer.log('git', `${repo.name} failed: ${e.message}`, 'trace', 'unavailable');
+            setRepoStatus(repo.name, `refresh failed: ${e.message}`);
+            setRepoHealth(repo.name, 'unavailable');
           }
-          footer.log('git', `${repo.name} failed: ${results[index].reason?.message || 'unknown error'}`, 'trace', 'unavailable');
-          setRepoStatus(repo.name, `refresh failed: ${results[index].reason?.message || 'unknown error'}`);
-          setRepoHealth(repo.name, 'unavailable');
-          return cache[repo.name] || emptyRepoData();
-        });
+        }
+        const cache = loadRepoCache();
+        const values = repos.map((repo) => dataByRepo.get(repo.name) || cache[repo.name] || emptyRepoData());
         renderApp(values);
-        const readyCount = results.filter((entry) => entry.status === 'fulfilled').length;
+        const readyCount = dataByRepo.size;
         setStatus(readyCount === repos.length ? 'ready' : `partial: ${readyCount}/${repos.length} repos ready`, readyCount === repos.length ? 'available' : 'checking');
       } catch (e) {
         setStatus(`unavailable: ${e.message}`, 'unavailable');
