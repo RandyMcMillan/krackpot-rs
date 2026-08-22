@@ -78,6 +78,16 @@
   button:hover, a.button:hover { background:var(--button-hover); }
   .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--surface-strong); border-top:1px solid var(--border); padding:10px 20px; z-index:40; }
   .sticky-footer-inner { max-width:1200px; margin:0 auto; }
+  .footer-header { display:flex; align-items:center; gap:10px; }
+  .footer-toggle { display:inline-flex; align-items:center; gap:8px; background:transparent; border:0; color:inherit; padding:0; }
+  .footer-toggle:hover { background:transparent; }
+  .footer-status-wrap { flex:0 0 auto; }
+  .footer-log-wrap { flex:1 1 auto; min-width:0; }
+  .footer-chevron { display:inline-block; width:1em; transition:transform .15s ease; }
+  .footer-chevron.open { transform:rotate(90deg); }
+  .footer-log { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); max-height:180px; overflow:auto; }
+  .footer-log-item { display:flex; gap:8px; margin:0 0 6px; }
+  .footer-log-time { flex:0 0 auto; color:var(--muted); }
   @media (max-width: 900px) { .grid, .detail-grid { grid-template-columns:1fr; } }
 </style>
 </head>
@@ -97,7 +107,18 @@
 
   <div class="sticky-footer">
     <div class="sticky-footer-inner small muted">
-      <span id="footerStatus" class="status status-idle" title="git viewer: starting..."><span class="status-dot"></span></span>
+      <div class="footer-header">
+        <div class="footer-status-wrap">
+          <span id="footerStatus" class="status status-idle" title="git viewer: starting..."><span class="status-dot"></span></span>
+        </div>
+        <div class="footer-log-wrap">
+          <button id="footerToggle" class="footer-toggle" type="button" aria-expanded="false" aria-controls="footerLogPanel">
+            <span id="footerChevron" class="footer-chevron">▸</span>
+            <span>Logger</span>
+          </button>
+        </div>
+      </div>
+      <div id="footerLogPanel" class="footer-log" hidden></div>
     </div>
   </div>
 
@@ -168,15 +189,44 @@
 
     const statusEl = document.getElementById('status');
     const footerStatusEl = document.getElementById('footerStatus');
+    const footerToggleEl = document.getElementById('footerToggle');
+    const footerChevronEl = document.getElementById('footerChevron');
+    const footerLogPanelEl = document.getElementById('footerLogPanel');
     const reposEl = document.getElementById('repos');
     const repoState = new Map();
+    const footerLogs = [];
+    let footerOpen = false;
     const refreshBtn = document.getElementById('refreshBtn');
+
+    function addFooterLog(text) {
+      footerLogs.push({
+        time: new Date().toLocaleTimeString(),
+        text,
+      });
+      while (footerLogs.length > 24) footerLogs.shift();
+      renderFooterLog();
+    }
+
+    function renderFooterLog() {
+      footerChevronEl.className = `footer-chevron${footerOpen ? ' open' : ''}`;
+      footerToggleEl.setAttribute('aria-expanded', footerOpen ? 'true' : 'false');
+      footerLogPanelEl.hidden = !footerOpen;
+      footerLogPanelEl.innerHTML = footerLogs.length
+        ? footerLogs.map((entry) => `
+          <div class="footer-log-item">
+            <span class="footer-log-time mono">${escapeHtml(entry.time)}</span>
+            <span>${escapeHtml(entry.text)}</span>
+          </div>
+        `).join('')
+        : '<div class="muted">No log entries yet.</div>';
+    }
 
     function setStatus(text, state = 'idle') {
       statusEl.className = `status status-${state}`;
       footerStatusEl.className = `status status-${state}`;
       statusEl.title = text;
       footerStatusEl.title = `git viewer: ${text}`;
+      addFooterLog(text);
     }
 
     function setRepoStatus(repoName, text) {
@@ -617,7 +667,7 @@
           </div>
           <div class="actions">
             <button type="button" data-refresh-repo="${repo.name}">Refresh</button>
-            <a class="button" href="/git/">Back to repos</a>
+            <a class="button" href="./">Back to repos</a>
             <a class="button" href="${repo.url}" target="_blank" rel="noreferrer noopener">Open upstream</a>
           </div>
         </div>
@@ -686,7 +736,7 @@
               <h2 style="margin:4px 0 0;">${escapeHtml(repoName)}</h2>
             </div>
             <div class="actions">
-              <a class="button" href="/git/">Back to all repos</a>
+              <a class="button" href="./">Back to all repos</a>
             </div>
           </div>
           <div class="detail-empty" style="margin-top:12px;">
@@ -850,6 +900,11 @@
       }
     }
 
+    footerToggleEl.addEventListener('click', () => {
+      footerOpen = !footerOpen;
+      renderFooterLog();
+    });
+    renderFooterLog();
     refreshBtn.addEventListener('click', () => { void refreshList(); });
     renderApp();
     void refresh();
