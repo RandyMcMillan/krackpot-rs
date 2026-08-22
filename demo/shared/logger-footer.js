@@ -19,6 +19,7 @@ function normalizeState(text, fallback = 'idle') {
 
 const LOG_LEVELS = ['none', 'info', 'debug', 'trace', 'warn'];
 const STORAGE_PREFIX = 'nostr-dag.logger-footer';
+const FOOTER_SPACER_VAR = '--sticky-footer-space';
 
 function normalizeLevel(value) {
   const level = String(value || 'info').toLowerCase();
@@ -86,6 +87,14 @@ function savePersistedFooterState(storageKey, state) {
   }
 }
 
+function setFooterSpacer(height) {
+  try {
+    globalThis.document?.documentElement?.style?.setProperty(FOOTER_SPACER_VAR, `${Math.max(0, Math.ceil(height))}px`);
+  } catch {
+    // best effort only
+  }
+}
+
 export function createLoggerFooter(root, options = {}) {
   if (!root) {
     return {
@@ -103,7 +112,12 @@ export function createLoggerFooter(root, options = {}) {
   const storageKey = resolveStorageKey(title, options.storageKey);
   const persisted = loadPersistedFooterState(storageKey);
 
+  const rootStyle = root.style || (root.style = {});
   root.classList.add('sticky-footer');
+  rootStyle.resize = 'vertical';
+  rootStyle.overflow = 'hidden';
+  rootStyle.minHeight = '84px';
+  rootStyle.maxHeight = '70vh';
   root.innerHTML = `
     <div class="sticky-footer-inner small muted">
       <div class="footer-header">
@@ -134,6 +148,7 @@ export function createLoggerFooter(root, options = {}) {
   let level = persisted?.level ?? normalizeLevel(options.initialLevel || 'none');
   let autoScroll = true;
   let scrollListenerBound = false;
+  let footerObserver = null;
 
   function persistState() {
     savePersistedFooterState(storageKey, { open, level });
@@ -172,6 +187,10 @@ export function createLoggerFooter(root, options = {}) {
     }, { passive: true });
   }
 
+  function syncFooterSpacer() {
+    setFooterSpacer(root.getBoundingClientRect?.().height || root.offsetHeight || 0);
+  }
+
   function renderLevelPills() {
     levelEl.innerHTML = LOG_LEVELS.map((entryLevel) => `
       <button type="button" class="footer-pill${entryLevel === level ? ' active' : ''}" data-level-pill="${entryLevel}">
@@ -203,6 +222,7 @@ export function createLoggerFooter(root, options = {}) {
       `).join('')
       : '<div class="muted">No log entries yet.</div>';
     scheduleScrollBottom();
+    syncFooterSpacer();
   }
 
   function setState(state, text) {
@@ -233,6 +253,10 @@ export function createLoggerFooter(root, options = {}) {
 
   setState(initialState, initialTitle);
   bindScrollLock();
+  if (typeof globalThis.ResizeObserver === 'function') {
+    footerObserver = new globalThis.ResizeObserver(() => syncFooterSpacer());
+    footerObserver.observe(root);
+  }
   render();
 
   return {
@@ -262,6 +286,10 @@ export function createLoggerFooter(root, options = {}) {
       open = !open;
       persistState();
       render();
+    },
+    destroy() {
+      footerObserver?.disconnect?.();
+      footerObserver = null;
     },
   };
 }
