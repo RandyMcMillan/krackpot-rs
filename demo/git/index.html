@@ -71,9 +71,10 @@
   .repo-toolbar .spacer { flex:1 1 auto; }
   .repo-select { min-width:220px; }
   .repo-layout { display:grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap:14px; align-items:stretch; margin-top:14px; }
+  .repo-main { display:flex; flex-direction:column; gap:14px; min-height:100%; }
   .repo-sidebar { display:flex; flex-direction:column; gap:14px; min-height:100%; }
   .repo-sidebar-card { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
-  .repo-sidebar-spacer { flex:1 1 auto; min-height:160px; }
+  .repo-bumper { flex:1 1 auto; min-height:160px; }
   .repo-files { border:1px solid var(--border); border-radius:8px; background:var(--surface); overflow:hidden; }
   .repo-files-header, .repo-files-row { display:grid; grid-template-columns: 1fr 140px 180px; gap:10px; align-items:center; padding:10px 12px; }
   .repo-files-header { background:var(--status-bg); color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
@@ -1236,6 +1237,7 @@
                   <div style="margin-top:10px;">${renderFileList(data.files)}</div>
                 </div>
               `}
+              <div class="repo-sidebar-card repo-bumper" aria-hidden="true"></div>
             </div>
             <aside class="repo-sidebar">
               <div class="repo-sidebar-card">
@@ -1255,7 +1257,7 @@
                 <div class="muted small">Recent commits</div>
                 <div style="margin-top:10px;">${renderRecentCommits(repo, data.commits, route)}</div>
               </div>
-              <div class="repo-sidebar-card repo-sidebar-spacer" aria-hidden="true"></div>
+              <div class="repo-sidebar-card repo-bumper" aria-hidden="true"></div>
             </aside>
           </div>
         </div>
