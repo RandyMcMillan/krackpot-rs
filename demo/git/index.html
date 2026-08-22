@@ -971,13 +971,15 @@
       const parentList = (selectedCommit?.parents || []).map((parent) => `<span class="pill mono">${escapeHtml(parent.slice(0, 12))}</span>`).join(' ') || '<span class="muted">No parent data</span>';
       const diffList = data.commitDiff.length
         ? data.commitDiff.map((entry) => `
-          <div class="repo-diff-file">
-            <div class="repo-commit-top">
-              <div class="repo-commit-summary">${entry.status === 'added' ? '+' : entry.status === 'deleted' ? '−' : '±'} ${escapeHtml(entry.path)}</div>
-              <span class="muted small">${escapeHtml(entry.status)}</span>
-            </div>
+          <details class="repo-diff-file">
+            <summary style="cursor:pointer;">
+              <span class="repo-commit-top">
+                <span class="repo-commit-summary">${entry.status === 'added' ? '+' : entry.status === 'deleted' ? '−' : '±'} ${escapeHtml(entry.path)}</span>
+                <span class="muted small">${escapeHtml(entry.status)}</span>
+              </span>
+            </summary>
             <pre class="repo-diff-body">${escapeHtml(entry.patch.join('\n'))}</pre>
-          </div>
+          </details>
         `).join('')
         : '<div class="detail-empty muted">No file changes found.</div>';
       return `
