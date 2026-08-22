@@ -42,7 +42,10 @@ jobs:
         run: wasm-pack build --target web --release --out-dir site/pkg -- --no-default-features --features wasm
 
       - name: Copy demo into site
-        run: cp demo/index.html site/index.html
+        run: |
+          cp demo/index.html site/index.html
+          mkdir -p site/shared
+          cp demo/shared/page-path.js site/shared/page-path.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

@@ -123,6 +123,7 @@
   </div>
 
   <script type="module">
+    import { resolveHref } from '../shared/page-path.js';
     import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
     import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
@@ -356,7 +357,7 @@
       search.set('repo', repo.name);
       if (branch) search.set('branch', branch);
       if (tag) search.set('tag', tag);
-      return `/git/?${search.toString()}`;
+      return resolveHref(`./?${search.toString()}`);
     }
 
     function getRouteContext() {

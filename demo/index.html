@@ -98,7 +98,7 @@
       <button id="resetBtn">Reset DAG</button>
       <button id="seedBtn">Create Genesis (all participants)</button>
       <button id="ackRoundBtn">Run Ack Round</button>
-      <a class="button" href="./git/" target="_blank" rel="noreferrer noopener">Open Git viewer</a>
+      <a id="openGitViewer" class="button" href="./git/" target="_blank" rel="noreferrer noopener">Open Git viewer</a>
       <span id="status" class="status">Loading WASM...</span>
     </div>
     <div class="small muted" style="margin-top:8px;">Tip: open this via HTTP (GitHub Pages or local server), not <span class="mono">file://</span>.</div>
@@ -169,6 +169,7 @@
 
   <script type="module">
     // Step 4: import the WASM DAG and browser-only Nostr/libp2p helpers.
+    import { resolveHref } from './shared/page-path.js';
     import init, { WasmDag } from './pkg/nostr_dag.js';
     import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
     import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
@@ -236,6 +237,10 @@
     const seedBtnEl = document.getElementById('seedBtn');
     const ackRoundBtnEl = document.getElementById('ackRoundBtn');
     const libp2pFooterStatusEl = document.getElementById('libp2pFooterStatus');
+    const openGitViewerEl = document.getElementById('openGitViewer');
+    if (openGitViewerEl) {
+      openGitViewerEl.href = resolveHref('./git/');
+    }
 
     const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
 
