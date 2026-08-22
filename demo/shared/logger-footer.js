@@ -95,6 +95,14 @@ function setFooterSpacer(height) {
   }
 }
 
+function dispatchWindowResize() {
+  try {
+    globalThis.window?.dispatchEvent(new globalThis.Event('resize'));
+  } catch {
+    // best effort only
+  }
+}
+
 export function createLoggerFooter(root, options = {}) {
   if (!root) {
     return {
@@ -249,6 +257,7 @@ export function createLoggerFooter(root, options = {}) {
     open = !open;
     persistState();
     render();
+    dispatchWindowResize();
   });
 
   setState(initialState, initialTitle);
