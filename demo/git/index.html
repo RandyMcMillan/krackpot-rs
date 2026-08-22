@@ -381,6 +381,16 @@
       }
     }
 
+    async function ensureDir(path) {
+      try {
+        await fs.promises.mkdir(path, { recursive: true });
+      } catch (e) {
+        if (e?.name !== 'AlreadyExists' && e?.code !== 'EEXIST') {
+          throw e;
+        }
+      }
+    }
+
     function createRepoCardModel(repo, data) {
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
       const selectedBranch = data.branches.includes(data.selectedRef) ? data.selectedRef : (data.branches[0] || '');
@@ -534,10 +544,11 @@
       const url = repo.url;
       const dir = repo.dir;
       try {
+        await ensureDir('/repos');
         const exists = await pathExists(dir);
         if (!exists) {
           setRepoStatus(repo.name, 'cloning...');
-          await fs.promises.mkdir(dir, { recursive: true });
+          await ensureDir(dir);
           await git.clone({
             fs,
             http,
