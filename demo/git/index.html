@@ -45,6 +45,22 @@
     }
   }
   * { box-sizing:border-box; }
+  :root {
+    --scrollbar-thumb: rgba(148,163,184,0);
+    --scrollbar-track: transparent;
+  }
+  html { scrollbar-gutter: stable; }
+  html.scrollbars-active { --scrollbar-thumb: rgba(148,163,184,.55); }
+  html, body, * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
+  html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { width:10px; height:10px; }
+  html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, *::-webkit-scrollbar-track { background:transparent; }
+  html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, *::-webkit-scrollbar-thumb {
+    background-color:var(--scrollbar-thumb);
+    border-radius:999px;
+    border:2px solid transparent;
+    background-clip:padding-box;
+    transition:background-color .2s ease;
+  }
   body { font-family: system-ui, -apple-system, sans-serif; line-height:1.6; margin: 0; padding: 0 0 calc(var(--sticky-footer-space, 80px) + 24px); background:var(--bg); color:var(--fg); }
   .page-content { max-width: 1200px; margin: 2rem auto; padding: 0 1.5rem; }
   h1 { margin: 0 0 6px; color: var(--accent); }
