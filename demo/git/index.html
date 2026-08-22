@@ -1229,13 +1229,6 @@
                   </div>
                   <div style="margin-top:10px;">${renderFileList(data.files)}</div>
                 </div>
-                <div class="repo-sidebar-card" style="margin-top:14px;">
-                  <div class="row" style="justify-content:space-between; align-items:center;">
-                    <h3 style="margin:0;">Recent commits</h3>
-                    <span class="muted small">${commitCount} loaded</span>
-                  </div>
-                  <div style="margin-top:10px;">${renderRecentCommits(repo, data.commits, route)}</div>
-                </div>
               `}
             </div>
             <aside class="repo-sidebar">
@@ -1252,6 +1245,10 @@
                 <div class="small"><span class="muted">Tags:</span> ${data.tags.length}</div>
                 <div class="small"><span class="muted">Selected ref:</span> <span class="mono">${escapeHtml(data.selectedRef || 'n/a')}</span></div>
               </div>
+                <div class="repo-sidebar-card">
+                  <div class="muted small">Recent commits</div>
+                  <div style="margin-top:10px;">${renderRecentCommits(repo, data.commits, route)}</div>
+                </div>
             </aside>
           </div>
         </div>
