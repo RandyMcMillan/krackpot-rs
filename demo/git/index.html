@@ -747,6 +747,19 @@
       `).join('')}</ul>`;
     }
 
+    function renderRecentCommits(commits) {
+      const body = renderCommitList(commits);
+      if (commits.length <= 5) {
+        return body;
+      }
+      return `
+        <details class="small">
+          <summary style="cursor:pointer;">Recent commits (${commits.length})</summary>
+          <div style="margin-top:10px;">${body}</div>
+        </details>
+      `;
+    }
+
     function renderFileList(files) {
       if (!files.length) {
         return '<div class="repo-files-empty muted">No files found for this ref.</div>';
@@ -845,7 +858,7 @@
                     <h3 style="margin:0;">Commits</h3>
                     <span class="muted small">${commitCount} loaded</span>
                   </div>
-                  <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
+                  <div style="margin-top:10px;">${renderRecentCommits(data.commits)}</div>
                 </div>
               ` : `
                 <div class="repo-sidebar-card">
@@ -860,7 +873,7 @@
                     <h3 style="margin:0;">Recent commits</h3>
                     <span class="muted small">${commitCount} loaded</span>
                   </div>
-                  <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
+                  <div style="margin-top:10px;">${renderRecentCommits(data.commits)}</div>
                 </div>
               `}
             </div>
