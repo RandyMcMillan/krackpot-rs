@@ -782,22 +782,31 @@
     async function refreshList() {
       try {
         setStatus('loading repos...', 'checking');
+        repos.forEach((repo) => {
+          setRepoStatus(repo.name, 'refreshing...');
+          setRepoHealth(repo.name, 'checking');
+        });
         renderApp();
-        const ensured = await Promise.allSettled(repos.map(ensureRepo));
-        const readyRepos = repos.filter((_, index) => ensured[index].status === 'fulfilled');
-        const readResults = await Promise.allSettled(readyRepos.map((repo) => readRepo(repo)));
+        const results = await Promise.allSettled(repos.map(async (repo) => {
+          const probe = probeRemoteHost(repo).catch(() => false);
+          await ensureRepo(repo);
+          const data = await readRepo(repo);
+          cacheRepoData(repo.name, data);
+          setRepoHealth(repo.name, (await probe) ? 'available' : 'unavailable');
+          setRepoStatus(repo.name, 'ready');
+          return data;
+        }));
         const cache = loadRepoCache();
-        const results = repos.map((repo) => {
-          const readIndex = readyRepos.findIndex((entry) => entry.name === repo.name);
-          if (readIndex >= 0 && readResults[readIndex].status === 'fulfilled') {
-            const data = readResults[readIndex].value;
-            cacheRepoData(repo.name, data);
-            return data;
+        const values = repos.map((repo, index) => {
+          if (results[index].status === 'fulfilled') {
+            return results[index].value;
           }
+          setRepoStatus(repo.name, `refresh failed: ${results[index].reason?.message || 'unknown error'}`);
+          setRepoHealth(repo.name, 'unavailable');
           return cache[repo.name] || emptyRepoData();
         });
-        renderApp(results);
-        const readyCount = readyRepos.length;
+        renderApp(values);
+        const readyCount = results.filter((entry) => entry.status === 'fulfilled').length;
         setStatus(readyCount === repos.length ? 'ready' : `partial: ${readyCount}/${repos.length} repos ready`, readyCount === repos.length ? 'available' : 'checking');
       } catch (e) {
         setStatus(`unavailable: ${e.message}`, 'unavailable');
