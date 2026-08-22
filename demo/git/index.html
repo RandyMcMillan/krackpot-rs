@@ -437,6 +437,16 @@
       return resolveHref(`./?${search.toString()}`);
     }
 
+    function repoFileHref(repo, { branch = null, tag = null, commit = null, path = null } = {}) {
+      const search = new URLSearchParams();
+      search.set('repo', repo.name);
+      if (branch) search.set('branch', branch);
+      if (tag) search.set('tag', tag);
+      if (commit) search.set('commit', commit);
+      if (path) search.set('path', path);
+      return resolveHref(`./blame.html?${search.toString()}`);
+    }
+
     function getRouteContext() {
       const params = new URLSearchParams(window.location.search);
       const repoName = params.get('repo') || '';
@@ -1119,7 +1129,7 @@
                       <span class="muted small">Files at commit · ${data.files.length} entries</span>
                     </span>
                   </summary>
-                  <div style="margin-top:10px;">${renderFileList(data.files)}</div>
+                  <div style="margin-top:10px;">${renderFileList(repo, data.files, route)}</div>
                 </details>
               </div>
             </div>
@@ -1144,7 +1154,7 @@
       `;
     }
 
-    function renderFileList(files) {
+    function renderFileList(repo, files, route) {
       if (!files.length) {
         return '<div class="repo-files-empty muted">No files found for this ref.</div>';
       }
@@ -1160,12 +1170,18 @@
           const name = parts[parts.length - 1] || file;
           const folder = parts.length > 1 ? parts.slice(0, -1).join('/') : '.';
           const ext = name.includes('.') ? name.split('.').pop() : 'file';
+          const href = repoFileHref(repo, {
+            branch: route?.branch || null,
+            tag: route?.tag || null,
+            commit: route?.commit || null,
+            path: file,
+          });
           return `
-            <div class="repo-files-row mono">
+            <a class="repo-files-row mono" href="${href}">
               <div class="repo-files-name"><span>📄</span><span>${escapeHtml(name)}</span></div>
               <div>${escapeHtml(ext)}</div>
               <div>${escapeHtml(folder)}</div>
-            </div>
+            </a>
           `;
         }).join('')}
         </div>
@@ -1250,7 +1266,7 @@
                     <h3 style="margin:0;">Files</h3>
                     <span class="muted small">${data.files.length} entries</span>
                   </div>
-                  <div style="margin-top:10px;">${renderFileList(data.files)}</div>
+                  <div style="margin-top:10px;">${renderFileList(repo, data.files, route)}</div>
                 </div>
               `}
               <div class="repo-sidebar-card repo-bumper" aria-hidden="true"></div>
