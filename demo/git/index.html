@@ -130,25 +130,48 @@
       }
     }
 
-    function repoCard(repo, data) {
+    function createRepoCardModel(repo, data) {
       const iconUrl = `${new URL(repo.url).origin}/favicon.ico`;
+      const fileItems = data.files.length
+        ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('')
+        : '<li>none</li>';
+      const tagItems = data.tags.length
+        ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ')
+        : 'none';
+
+      return {
+        repo,
+        iconUrl,
+        status: repoState.get(repo.name) || 'idle',
+        ref: data.ref || 'n/a',
+        latest: data.latest || 'n/a',
+        tags: tagItems,
+        files: fileItems,
+      };
+    }
+
+    function renderRepoCard(card) {
       return `
         <div class="repo">
           <h3 class="row" style="gap:8px;align-items:center;">
-            <img src="${iconUrl}" alt="" width="16" height="16" loading="eager" fetchpriority="high" style="border-radius:3px;" />
-            <span>${repo.name}</span>
+            <img src="${card.iconUrl}" alt="" width="16" height="16" loading="eager" fetchpriority="high" style="border-radius:3px;" />
+            <span>${card.repo.name}</span>
           </h3>
-          <div class="small muted"><a href="${repo.url}" target="_blank" rel="noreferrer noopener">${repo.url}</a></div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${repoState.get(repo.name) || 'idle'}</div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${data.ref || 'n/a'}</span></div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${data.latest || 'n/a'}</span></div>
-          <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${data.tags.length ? data.tags.map((tag) => `<span class="mono">${tag}</span>`).join(' ') : 'none'}</div>
+          <div class="small muted"><a href="${card.repo.url}" target="_blank" rel="noreferrer noopener">${card.repo.url}</a></div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Status:</span> ${card.status}</div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Ref:</span> <span class="mono">${card.ref}</span></div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Latest:</span> <span class="mono">${card.latest}</span></div>
+          <div class="small" style="margin-top:8px;"><span class="muted">Tags:</span> ${card.tags}</div>
           <div class="small" style="margin-top:8px;"><span class="muted">Files:</span></div>
           <ul>
-            ${data.files.length ? data.files.map((file) => `<li class="mono" style="word-break:break-all;">${file}</li>`).join('') : '<li>none</li>'}
+            ${card.files}
           </ul>
         </div>
       `;
+    }
+
+    function repoCard(repo, data) {
+      return renderRepoCard(createRepoCardModel(repo, data));
     }
 
     async function ensureRepo(repo) {
