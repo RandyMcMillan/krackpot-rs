@@ -31,8 +31,10 @@ function progressBucket(info) {
  * The browser UI logs the returned message at trace level so the footer stays
  * readable while still showing clone/fetch activity like native git.
  */
-export function createGitProgressReporter(repoName, operation) {
+export function createGitProgressReporter(repoName, operation, context = '') {
   const state = { signature: null, bucket: null, phase: '' };
+  const contextLabel = String(context || '').trim();
+  const prefix = contextLabel ? `${repoName} ${operation} (${contextLabel})` : `${repoName} ${operation}`;
 
   return (progress, done = false) => {
     const info = summarizeGitProgress(progress);
@@ -51,6 +53,6 @@ export function createGitProgressReporter(repoName, operation) {
     state.bucket = bucket;
     state.phase = info.phase;
 
-    return `${repoName} ${operation}${done ? ' complete' : `: ${info.text}`}`;
+    return `${prefix}${done ? ' complete' : `: ${info.text}`}`;
   };
 }

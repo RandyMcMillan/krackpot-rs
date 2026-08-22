@@ -23,3 +23,12 @@ test('createGitProgressReporter deduplicates repeated updates and emits completi
   assert.equal(report({ phase: 'counting objects', loaded: 2, total: 20 }), 'nostr-dag clone: counting objects 2/20 (10%)');
   assert.equal(report({ phase: 'done' }, true), 'nostr-dag clone complete');
 });
+
+test('createGitProgressReporter includes ref context when provided', () => {
+  const report = createGitProgressReporter('nostr-dag', 'fetch', 'branch master');
+
+  assert.equal(
+    report({ phase: 'resolving deltas', loaded: 101, total: 106 }),
+    'nostr-dag fetch (branch master): resolving deltas 101/106 (95%)',
+  );
+});

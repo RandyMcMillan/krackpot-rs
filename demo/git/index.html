@@ -583,10 +583,17 @@
     const gitProgressReporters = new Map();
     const GIT_HISTORY_DEPTH = 12;
 
+    function progressContextLabel(route) {
+      if (route?.branch) return `branch ${route.branch}`;
+      if (route?.tag) return `tag ${route.tag}`;
+      return '';
+    }
+
     function getGitProgressReporter(repo, operation) {
-      const key = `${repo.name}:${operation}`;
+      const context = progressContextLabel(getRouteContext().repo?.name === repo.name ? getRouteContext() : null);
+      const key = `${repo.name}:${operation}:${context}`;
       if (!gitProgressReporters.has(key)) {
-        gitProgressReporters.set(key, createGitProgressReporter(repo.name, operation));
+        gitProgressReporters.set(key, createGitProgressReporter(repo.name, operation, context));
       }
       return gitProgressReporters.get(key);
     }
@@ -599,7 +606,7 @@
         const exists = await pathExists(dir);
         if (!exists) {
           setRepoStatus(repo.name, 'cloning...');
-          footer.log('git', `${repo.name} cloning`, 'trace');
+          footer.log('git', `${repo.name} cloning${route ? ` (${progressContextLabel(route)})` : ''}`, 'trace');
           await ensureDir(dir);
           await git.clone({
             fs,
@@ -626,7 +633,7 @@
       }
 
       setRepoStatus(repo.name, 'fetching tags...');
-      footer.log('git', `${repo.name} fetching tags`, 'trace');
+      footer.log('git', `${repo.name} fetching tags${route ? ` (${progressContextLabel(route)})` : ''}`, 'trace');
       await fetchRepoRefs(repo, route, (progress) => {
         const message = getGitProgressReporter(repo, 'fetch')(progress);
         if (message) {
