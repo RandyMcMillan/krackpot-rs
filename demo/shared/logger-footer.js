@@ -72,12 +72,7 @@ export function createLoggerFooter(root, options = {}) {
               <span data-footer-chevron class="footer-chevron">▸</span>
               <span>${title}</span>
             </button>
-            <label class="footer-level">
-              <span>Level</span>
-              <select data-footer-level>
-                ${LOG_LEVELS.map((level) => `<option value="${level}" ${level === 'info' ? 'selected' : ''}>${level}</option>`).join('')}
-              </select>
-            </label>
+            <div class="footer-level-pills" data-footer-level></div>
           </div>
         </div>
       </div>
@@ -94,10 +89,24 @@ export function createLoggerFooter(root, options = {}) {
   let open = false;
   let level = normalizeLevel(options.initialLevel || 'info');
 
+  function renderLevelPills() {
+    levelEl.innerHTML = LOG_LEVELS.map((entryLevel) => `
+      <button type="button" class="footer-pill${entryLevel === level ? ' active' : ''}" data-level-pill="${entryLevel}">
+        ${entryLevel}
+      </button>
+    `).join('');
+    levelEl.querySelectorAll('[data-level-pill]').forEach((button) => {
+      button.addEventListener('click', () => {
+        level = normalizeLevel(button.getAttribute('data-level-pill'));
+        render();
+      });
+    });
+  }
+
   function render() {
     chevronEl.className = `footer-chevron${open ? ' open' : ''}`;
     toggleEl.setAttribute('aria-expanded', open ? 'true' : 'false');
-    levelEl.value = level;
+    renderLevelPills();
     logEl.hidden = !open;
     const visibleLogs = level === 'none' ? [] : logs.filter((entry) => entry.level === level);
     logEl.innerHTML = visibleLogs.length
@@ -129,11 +138,6 @@ export function createLoggerFooter(root, options = {}) {
     setState(state || normalizeState(text), label ? `${label}: ${text}` : String(text));
     render();
   }
-
-  levelEl.addEventListener('change', () => {
-    level = normalizeLevel(levelEl.value);
-    render();
-  });
 
   toggleEl.addEventListener('click', () => {
     open = !open;

@@ -89,8 +89,10 @@
     .footer-status-wrap { flex:0 0 auto; }
     .footer-log-wrap { flex:1 1 auto; min-width:0; }
     .footer-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; }
-    .footer-level { display:inline-flex; align-items:center; gap:6px; margin-left:auto; }
-    .footer-level select { background:var(--input-bg); color:var(--input-fg); border:1px solid var(--border); border-radius:6px; padding:4px 6px; }
+    .footer-level-pills { display:inline-flex; align-items:center; margin-left:auto; flex-wrap:wrap; overflow:hidden; border:1px solid var(--border); border-radius:999px; }
+    .footer-pill { border:0; border-right:1px solid var(--border); padding:4px 10px; background:transparent; color:var(--muted); cursor:pointer; border-radius:0; }
+    .footer-pill:last-child { border-right:0; }
+    .footer-pill.active { background:var(--button-bg); color:var(--fg); }
     .footer-chevron { display:inline-block; width:1em; transition:transform .15s ease; }
     .footer-chevron.open { transform:rotate(90deg); }
     .footer-log { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); max-height:180px; overflow:auto; }
