@@ -1368,6 +1368,12 @@
             setRepoStatus(repo.name, 'ready');
             footer.log('git', `ready ${repo.name}`, 'trace');
             dataByRepo.set(repo.name, data);
+            if (repoRoute) {
+              const cache = loadRepoCache();
+              renderApp(repos.map((entry) => (
+                entry.name === repo.name ? data : (dataByRepo.get(entry.name) || cache[entry.name] || emptyRepoData())
+              )));
+            }
           } catch (e) {
             footer.log('git', `${repo.name} failed: ${e.message}`, 'trace', 'unavailable');
             setRepoStatus(repo.name, `refresh failed: ${e.message}`);
