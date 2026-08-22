@@ -384,6 +384,15 @@
       return resolveHref(`./?${search.toString()}`);
     }
 
+    function repoCommitsHref(repo, { branch = null, tag = null } = {}) {
+      const search = new URLSearchParams();
+      search.set('repo', repo.name);
+      search.set('view', 'commits');
+      if (branch) search.set('branch', branch);
+      if (tag) search.set('tag', tag);
+      return resolveHref(`./?${search.toString()}`);
+    }
+
     function getRouteContext() {
       const params = new URLSearchParams(window.location.search);
       const repoName = params.get('repo') || '';
@@ -391,6 +400,7 @@
       return {
         repo: routeRepo,
         repoName: repoName || null,
+        view: params.get('view') || '',
         branch: params.get('branch') || '',
         tag: params.get('tag') || '',
       };
@@ -442,6 +452,10 @@
             tag: selectedTag || null,
           }),
           secondaryLabel: 'View repo',
+          commitsHref: repoCommitsHref(repo, {
+            branch: selectedBranch || null,
+            tag: selectedTag || null,
+          }),
         },
       };
     }
@@ -479,6 +493,7 @@
           <div class="row" style="margin-top:12px; justify-content:flex-end;">
             <button class="repo-refresh" type="button" data-refresh-repo="${card.toolbar.refreshId}">Refresh</button>
             <button class="button" type="button" data-view-repo="${card.toolbar.refreshId}">${card.toolbar.secondaryLabel}</button>
+            <button class="button" type="button" data-view-commits="${card.toolbar.refreshId}">Commits</button>
             <a class="button" href="${card.toolbar.primaryHref}" target="_blank" rel="noreferrer noopener">${card.toolbar.primaryLabel}</a>
           </div>
         </div>
@@ -771,6 +786,8 @@
       const currentCommit = data.latestCommit || null;
       const latestMessage = currentCommit ? currentCommit.summary : 'n/a';
       const commitCount = data.commits.length;
+      const selectedView = route.view === 'commits' ? 'commits' : 'code';
+      const commitsUrl = `${repo.url.replace(/\/$/, '')}/commits/${encodeURIComponent(data.resolvedRef || data.selectedRef || data.ref || 'HEAD')}/`;
       return `
         <div class="repo-page">
           <div class="repo-hero">
@@ -799,8 +816,10 @@
               </div>
             </div>
             <div class="repo-tabs" role="tablist" aria-label="Repository sections">
-              <a class="repo-tab active" href="${repoSelectionHref(repo, route)}">Code</a>
+              <a class="repo-tab${selectedView === 'code' ? ' active' : ''}" href="${repoSelectionHref(repo, route)}">Code</a>
+              <a class="repo-tab${selectedView === 'commits' ? ' active' : ''}" href="${repoCommitsHref(repo, route)}">Commits</a>
               <a class="repo-tab" href="${repo.url}" target="_blank" rel="noreferrer noopener">Upstream</a>
+              <a class="repo-tab" href="${commitsUrl}" target="_blank" rel="noreferrer noopener">GitHub commits</a>
               <span class="repo-tab">Latest: ${escapeHtml(latestMessage.slice(0, 40))}</span>
             </div>
           </div>
@@ -820,20 +839,30 @@
 
           <div class="repo-layout">
             <div class="repo-main">
-              <div class="repo-sidebar-card">
-                <div class="row" style="justify-content:space-between; align-items:center;">
-                  <h3 style="margin:0;">Files</h3>
-                  <span class="muted small">${data.files.length} entries</span>
+              ${selectedView === 'commits' ? `
+                <div class="repo-sidebar-card">
+                  <div class="row" style="justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0;">Commits</h3>
+                    <span class="muted small">${commitCount} loaded</span>
+                  </div>
+                  <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
                 </div>
-                <div style="margin-top:10px;">${renderFileList(data.files)}</div>
-              </div>
-              <div class="repo-sidebar-card" style="margin-top:14px;">
-                <div class="row" style="justify-content:space-between; align-items:center;">
-                  <h3 style="margin:0;">Recent commits</h3>
-                  <span class="muted small">${commitCount} loaded</span>
+              ` : `
+                <div class="repo-sidebar-card">
+                  <div class="row" style="justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0;">Files</h3>
+                    <span class="muted small">${data.files.length} entries</span>
+                  </div>
+                  <div style="margin-top:10px;">${renderFileList(data.files)}</div>
                 </div>
-                <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
-              </div>
+                <div class="repo-sidebar-card" style="margin-top:14px;">
+                  <div class="row" style="justify-content:space-between; align-items:center;">
+                    <h3 style="margin:0;">Recent commits</h3>
+                    <span class="muted small">${commitCount} loaded</span>
+                  </div>
+                  <div style="margin-top:10px;">${renderCommitList(data.commits)}</div>
+                </div>
+              `}
             </div>
             <aside class="repo-sidebar">
               <div class="repo-sidebar-card">
@@ -917,6 +946,24 @@
           await refreshDetail(nextRoute);
         });
       });
+      reposEl.querySelectorAll('[data-view-commits]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const repoName = button.getAttribute('data-view-commits');
+          const repo = repos.find((entry) => entry.name === repoName);
+          if (!repo) return;
+          const branchSelect = reposEl.querySelector(`[data-branch-select="${repo.name}"]`);
+          const tagSelect = reposEl.querySelector(`[data-tag-select="${repo.name}"]`);
+          const nextRoute = {
+            repo,
+            repoName: repo.name,
+            view: 'commits',
+            branch: branchSelect && branchSelect.value ? branchSelect.value : null,
+            tag: tagSelect && tagSelect.value ? tagSelect.value : null,
+          };
+          window.history.pushState({}, '', repoCommitsHref(repo, nextRoute));
+          await refreshDetail(nextRoute);
+        });
+      });
       reposEl.querySelectorAll('[data-branch-select], [data-tag-select]').forEach((select) => {
         select.addEventListener('change', async () => {
           const repoName = select.getAttribute('data-branch-select') || select.getAttribute('data-tag-select');
@@ -926,10 +973,11 @@
           const nextRoute = {
             repo,
             repoName: repo.name,
+            view: route.view || '',
             branch: isBranchSelect && select.value ? select.value : null,
             tag: !isBranchSelect && select.value ? select.value : null,
           };
-          window.history.replaceState({}, '', repoSelectionHref(repo, nextRoute));
+          window.history.replaceState({}, '', route.view === 'commits' ? repoCommitsHref(repo, nextRoute) : repoSelectionHref(repo, nextRoute));
           await refreshDetail(nextRoute);
         });
       });
