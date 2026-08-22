@@ -20,6 +20,7 @@ function normalizeState(text, fallback = 'idle') {
 const LOG_LEVELS = ['none', 'info', 'debug', 'trace', 'warn'];
 const STORAGE_PREFIX = 'nostr-dag.logger-footer';
 const FOOTER_SPACER_VAR = '--sticky-footer-space';
+const SCROLLBAR_ACTIVE_CLASS = 'scrollbars-active';
 
 function normalizeLevel(value) {
   const level = String(value || 'info').toLowerCase();
@@ -95,6 +96,14 @@ function setFooterSpacer(height) {
   }
 }
 
+function setScrollbarsActive(active) {
+  try {
+    globalThis.document?.documentElement?.classList?.toggle(SCROLLBAR_ACTIVE_CLASS, !!active);
+  } catch {
+    // best effort only
+  }
+}
+
 function dispatchWindowResize() {
   try {
     globalThis.window?.dispatchEvent(new globalThis.Event('resize'));
@@ -158,6 +167,7 @@ export function createLoggerFooter(root, options = {}) {
   let scrollListenerBound = false;
   let footerObserver = null;
   let scrollbarTimer = null;
+  let scrollbarListenersBound = false;
 
   function persistState() {
     savePersistedFooterState(storageKey, { open, level });
@@ -203,6 +213,18 @@ export function createLoggerFooter(root, options = {}) {
     logEl.addEventListener('focusin', showScrollbars);
   }
 
+  function bindScrollbarActivity() {
+    if (scrollbarListenersBound) return;
+    scrollbarListenersBound = true;
+    const activity = () => showScrollbars();
+    globalThis.window?.addEventListener('scroll', activity, { passive: true, capture: true });
+    globalThis.window?.addEventListener('wheel', activity, { passive: true, capture: true });
+    globalThis.window?.addEventListener('pointerdown', activity, { passive: true, capture: true });
+    globalThis.window?.addEventListener('pointermove', activity, { passive: true, capture: true });
+    globalThis.window?.addEventListener('touchstart', activity, { passive: true, capture: true });
+    globalThis.window?.addEventListener('keydown', activity, { passive: true, capture: true });
+  }
+
   function syncFooterSpacer() {
     setFooterSpacer(root.getBoundingClientRect?.().height || root.offsetHeight || 0);
   }
@@ -210,12 +232,12 @@ export function createLoggerFooter(root, options = {}) {
   function hideScrollbarsLater() {
     if (scrollbarTimer) clearTimeout(scrollbarTimer);
     scrollbarTimer = setTimeout(() => {
-      logEl.classList.remove('footer-scrollbars-active');
+      setScrollbarsActive(false);
     }, 2000);
   }
 
   function showScrollbars() {
-    logEl.classList.add('footer-scrollbars-active');
+    setScrollbarsActive(true);
     hideScrollbarsLater();
   }
 
@@ -283,6 +305,7 @@ export function createLoggerFooter(root, options = {}) {
 
   setState(initialState, initialTitle);
   bindScrollLock();
+  bindScrollbarActivity();
   if (typeof globalThis.ResizeObserver === 'function') {
     footerObserver = new globalThis.ResizeObserver(() => syncFooterSpacer());
     footerObserver.observe(root);
@@ -322,6 +345,7 @@ export function createLoggerFooter(root, options = {}) {
       footerObserver = null;
       if (scrollbarTimer) clearTimeout(scrollbarTimer);
       scrollbarTimer = null;
+      setScrollbarsActive(false);
     },
   };
 }
