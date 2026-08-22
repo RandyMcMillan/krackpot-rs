@@ -40,6 +40,16 @@ firefox demo/index.html
 
 Click "Connect", then send messages. Watch them go from pending (gray) to canonical (green) as acks arrive.
 
+## Git viewer detail view
+
+The Git viewer now supports a repo detail view on the same static page:
+
+- `/git/` shows the repository grid
+- `/git/?repo=nostr-dag&branch=master&tag=...` opens a single repo detail panel
+- the detail panel loads branches, tags, recent commits, and tracked files from the local clone
+
+This stays on the static `/git/` route so it works with the local file server and Safari without requiring deep-link rewrites.
+
 ## Project structure
 
 - `src/dag.rs` - Core DAG with pending event buffering
