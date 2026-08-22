@@ -811,18 +811,24 @@
     async function refreshList() {
       try {
         setStatus('loading repos...', 'checking');
+        footer.log('git', `refreshing ${repos.length} repos`, 'trace');
         repos.forEach((repo) => {
           setRepoStatus(repo.name, 'refreshing...');
           setRepoHealth(repo.name, 'checking');
+          footer.log('git', `checking ${repo.name}`, 'trace');
         });
         renderApp();
         const results = await Promise.allSettled(repos.map(async (repo) => {
+          footer.log('git', `probing ${repo.name}`, 'trace');
           const probe = probeRemoteHost(repo).catch(() => false);
+          footer.log('git', `ensuring ${repo.name}`, 'trace');
           await ensureRepo(repo);
+          footer.log('git', `reading ${repo.name}`, 'trace');
           const data = await readRepo(repo);
           cacheRepoData(repo.name, data);
           setRepoHealth(repo.name, (await probe) ? 'available' : 'unavailable');
           setRepoStatus(repo.name, 'ready');
+          footer.log('git', `ready ${repo.name}`, 'trace');
           return data;
         }));
         const cache = loadRepoCache();
@@ -830,6 +836,7 @@
           if (results[index].status === 'fulfilled') {
             return results[index].value;
           }
+          footer.log('git', `${repo.name} failed: ${results[index].reason?.message || 'unknown error'}`, 'trace', 'unavailable');
           setRepoStatus(repo.name, `refresh failed: ${results[index].reason?.message || 'unknown error'}`);
           setRepoHealth(repo.name, 'unavailable');
           return cache[repo.name] || emptyRepoData();
