@@ -17,6 +17,7 @@ test('shared header renders nav and active state', async () => {
 
   createSharedHeader(root, {
     title: 'nostr-dag',
+    logoHref: './',
     subtitleHtml: 'Shared chrome',
     navItems: [
       { label: 'Demo', href: './', current: true },
@@ -27,6 +28,7 @@ test('shared header renders nav and active state', async () => {
   assert.match(root.className, /sticky-header/);
   assert.match(root.innerHTML, /header-container/);
   assert.match(root.innerHTML, /nav-links/);
+  assert.match(root.innerHTML, /href="\.\//);
   assert.match(root.innerHTML, /aria-current="page"/);
   assert.match(root.innerHTML, /Git viewer/);
 });
