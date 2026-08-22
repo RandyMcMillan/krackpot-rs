@@ -22,12 +22,14 @@ A proof-of-concept showing how a federation of Nostr keypairs can achieve consen
 # Build, test, or generate the Pages site
 just build
 just test
+just test-all
 just site
 just server
 
 # Or use Make
 make build
 make test
+make test-all
 make site
 make server
 
@@ -51,6 +53,7 @@ The Git viewer now supports a repo detail view on the same static page:
 This stays on the static `/git/` route so it works with the local file server and Safari without requiring deep-link rewrites.
 
 The shared logger now surfaces `isomorphic-git` clone/fetch progress at trace level, and `test/git-progress.test.mjs` locks the progress text and dedupe behavior in place.
+The shared browser helpers are copied into `site/shared/`, and the local server serves `.mjs` modules as JavaScript so Pages and preview stay aligned.
 
 ## Project structure
 
