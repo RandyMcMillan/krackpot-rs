@@ -699,8 +699,9 @@
       if (!commitOid) return [];
       const commit = await git.readCommit({ fs, dir: repo.dir, oid: commitOid }).catch(() => null);
       const commitTreeOid = commit?.commit?.tree || '';
-      const parentTreeOid = parentOid
-        ? (await git.readCommit({ fs, dir: repo.dir, oid: parentOid }).catch(() => null))?.commit?.tree || ''
+      const resolvedParentOid = parentOid || commit?.commit?.parent?.[0] || '';
+      const parentTreeOid = resolvedParentOid
+        ? (await git.readCommit({ fs, dir: repo.dir, oid: resolvedParentOid }).catch(() => null))?.commit?.tree || ''
         : '';
       const [currentEntries, parentEntries] = await Promise.all([
         flattenTreeEntries(repo, commitTreeOid),
