@@ -18,6 +18,7 @@ function normalizeState(text, fallback = 'idle') {
 }
 
 const LOG_LEVELS = ['none', 'info', 'debug', 'trace', 'warn'];
+const STORAGE_PREFIX = 'nostr-dag.logger-footer';
 
 function normalizeLevel(value) {
   const level = String(value || 'info').toLowerCase();
@@ -44,6 +45,47 @@ function deriveLevelFromState(state) {
   return 'info';
 }
 
+function getStorage() {
+  try {
+    return globalThis.localStorage || null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveStorageKey(title, storageKey) {
+  if (storageKey) return storageKey;
+  const path = globalThis.location?.pathname || 'unknown';
+  return `${STORAGE_PREFIX}:${title}:${path}`;
+}
+
+function loadPersistedFooterState(storageKey) {
+  const storage = getStorage();
+  if (!storage) return null;
+  try {
+    const raw = storage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    return {
+      open: typeof parsed.open === 'boolean' ? parsed.open : null,
+      level: typeof parsed.level === 'string' ? normalizeLevel(parsed.level) : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function savePersistedFooterState(storageKey, state) {
+  const storage = getStorage();
+  if (!storage) return;
+  try {
+    storage.setItem(storageKey, JSON.stringify(state));
+  } catch {
+    // best effort only
+  }
+}
+
 export function createLoggerFooter(root, options = {}) {
   if (!root) {
     return {
@@ -58,6 +100,8 @@ export function createLoggerFooter(root, options = {}) {
   const title = options.title || 'Logger';
   const initialState = options.initialState || 'idle';
   const initialTitle = options.initialTitle || 'starting...';
+  const storageKey = resolveStorageKey(title, options.storageKey);
+  const persisted = loadPersistedFooterState(storageKey);
 
   root.classList.add('sticky-footer');
   root.innerHTML = `
@@ -86,8 +130,47 @@ export function createLoggerFooter(root, options = {}) {
   const levelEl = root.querySelector('[data-footer-level]');
   const logEl = root.querySelector('[data-footer-log]');
   const logs = [];
-  let open = false;
-  let level = normalizeLevel(options.initialLevel || 'none');
+  let open = persisted?.open ?? false;
+  let level = persisted?.level ?? normalizeLevel(options.initialLevel || 'none');
+  let autoScroll = true;
+  let scrollListenerBound = false;
+
+  function persistState() {
+    savePersistedFooterState(storageKey, { open, level });
+  }
+
+  function isNearBottom() {
+    return (logEl.scrollHeight - logEl.scrollTop - logEl.clientHeight) < 24;
+  }
+
+  function scheduleScrollBottom() {
+    if (!open || !autoScroll) return;
+    const run = () => {
+      logEl.scrollTop = logEl.scrollHeight;
+    };
+    if (typeof globalThis.requestAnimationFrame === 'function') {
+      globalThis.requestAnimationFrame(run);
+    } else {
+      setTimeout(run, 0);
+    }
+  }
+
+  function bindScrollLock() {
+    if (scrollListenerBound) return;
+    scrollListenerBound = true;
+    logEl.addEventListener('scroll', () => {
+      autoScroll = isNearBottom();
+    });
+    logEl.addEventListener('pointerdown', () => {
+      autoScroll = false;
+    });
+    logEl.addEventListener('wheel', () => {
+      autoScroll = false;
+    }, { passive: true });
+    logEl.addEventListener('touchstart', () => {
+      autoScroll = false;
+    }, { passive: true });
+  }
 
   function renderLevelPills() {
     levelEl.innerHTML = LOG_LEVELS.map((entryLevel) => `
@@ -98,6 +181,8 @@ export function createLoggerFooter(root, options = {}) {
     levelEl.querySelectorAll('[data-level-pill]').forEach((button) => {
       button.addEventListener('click', () => {
         level = normalizeLevel(button.getAttribute('data-level-pill'));
+        open = level !== 'none';
+        persistState();
         render();
       });
     });
@@ -117,6 +202,7 @@ export function createLoggerFooter(root, options = {}) {
         </div>
       `).join('')
       : '<div class="muted">No log entries yet.</div>';
+    scheduleScrollBottom();
   }
 
   function setState(state, text) {
@@ -141,10 +227,12 @@ export function createLoggerFooter(root, options = {}) {
 
   toggleEl.addEventListener('click', () => {
     open = !open;
+    persistState();
     render();
   });
 
   setState(initialState, initialTitle);
+  bindScrollLock();
   render();
 
   return {
@@ -154,6 +242,7 @@ export function createLoggerFooter(root, options = {}) {
       level = normalizeLevel(nextLevel);
       // Show the log panel as soon as the user picks a real level; hide it again for `none`.
       open = level !== 'none';
+      persistState();
       render();
     },
     getLevel() {
@@ -161,14 +250,17 @@ export function createLoggerFooter(root, options = {}) {
     },
     open() {
       open = true;
+      persistState();
       render();
     },
     close() {
       open = false;
+      persistState();
       render();
     },
     toggle() {
       open = !open;
+      persistState();
       render();
     },
   };
