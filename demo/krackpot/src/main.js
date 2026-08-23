@@ -121,6 +121,7 @@ const setTxStatus = (text, title = text) => {
   const label = el.querySelector("span:last-child");
   if (label) label.textContent = text;
   el.title = title;
+  logFooter("trace", `tx status: ${text}`, "available");
 };
 const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAddress, format = "hex" } = {}) => {
   const panel = $("payout-transaction-panel");
@@ -233,6 +234,7 @@ const refreshShareURL = () => {
     pay: pay || undefined,
     autostart: $("share-autostart").checked,
   });
+  logFooter("trace", `share url refreshed: ${field.value}`, "available");
 };
 
 // Surface which cached build is live. The service-worker cache name embeds
@@ -245,7 +247,10 @@ const showBuildVersion = async () => {
   try {
     const keys = await caches.keys();
     const c = keys.find((k) => k.startsWith("puzzlecrack-"));
-    if (c) el.textContent = `build ${c.replace("puzzlecrack-", "")}`;
+    if (c) {
+      el.textContent = `build ${c.replace("puzzlecrack-", "")}`;
+      logFooter("debug", `build cache: ${c}`, "available");
+    }
   } catch { /* Cache API unavailable — leave blank */ }
 };
 
@@ -375,11 +380,13 @@ const wireInstallPrompt = () => {
   window.addEventListener("beforeinstallprompt", (e) => {
     e.preventDefault();            // suppress the browser's default install banner
     deferredInstallPrompt = e;     // stash it for our own CTA button
+    logFooter("info", "beforeinstallprompt captured", "checking");
   });
   window.addEventListener("appinstalled", () => {
     deferredInstallPrompt = null;
     const cta = $("install-cta");
     if (cta) cta.hidden = true;
+    logFooter("info", "app installed", "available");
   });
 
   const cta = $("install-cta");
@@ -393,11 +400,13 @@ const wireInstallPrompt = () => {
     deferredInstallPrompt = null;  // a prompt event can only be used once
     cta.hidden = true;
     try { await prompt.prompt(); } catch { /* user dismissed the native prompt */ }
+    logFooter("debug", "install prompt shown", "checking");
   });
 
   dismissBtn.addEventListener("click", () => {
     cta.hidden = true;
     try { localStorage.setItem(INSTALL_DISMISSED_KEY, "1"); } catch { /* storage off — dismissal just isn't remembered */ }
+    logFooter("debug", "install cta dismissed", "available");
   });
 };
 
@@ -406,6 +415,7 @@ const wireInstallPrompt = () => {
 // Always surface the privkey + signed hex first so the finder can recover by
 // hand. Orchestration lives in claim-orchestrator.js; see docs/claim-privacy.md.
 const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
+  logFooter("info", `runClaim start: ${addr}`, "checking");
   // FIRST, before anything that can fail: log and persist the key. Every path
   // below (missing snapshot, build error, offline, submit failure) can lose the
   // tx and still be recovered from the key alone, so the key must outlive them.
@@ -435,6 +445,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
     setBanner(
       `HIT! priv=0x${hex} for ${addr}, but no UTXO snapshot was captured for this ` +
       `address. ${manualClaimWarning} ${keyNote}`, true);
+    logFooter("warn", `runClaim missing UTXO snapshot for ${addr}`, "unavailable");
     return;
   }
 
@@ -495,6 +506,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   }
 
   const { variants, tier1, relay, queued, queueEntry, destination } = result;
+  logFooter("trace", `runClaim variants ready: ${variants.standard.txid}`, "available");
 
   // Surface the signed hexes too (the key was logged + persisted on entry).
   console.log("standard tx:", variants.standard.txid, variants.standard.hex);
