@@ -77,17 +77,22 @@ export const createReplicatedArchive = async ({
     onStatus?.(message, ok);
   };
 
+  emitStatus(`archive db ready: ${dbName}`, true);
+  emitStatus(`archive topic: ${topic}`, true);
+
   const applyRecord = async (record, { local = false } = {}) => {
     if (!record || typeof record !== "object") return false;
     if (!record.id || seenIds.has(record.id)) return false;
     seenIds.add(record.id);
     await putRecord(db, storeName, record);
     onRecord?.(record, { local });
+    emitStatus(`${local ? "stored local" : "stored remote"} ${record.type}: ${record.id}`, true);
 
     if (record.type === "snapshot") {
       const currentTime = latestSnapshot?.createdAt ?? 0;
       if (!latestSnapshot || record.createdAt >= currentTime) {
         latestSnapshot = record;
+        emitStatus(`applied snapshot ${record.id}`, true);
         applySnapshot(record.payload, { local, record });
       }
     }
@@ -118,6 +123,7 @@ export const createReplicatedArchive = async ({
 
     publishing = true;
     try {
+      emitStatus(`publishing ${type} ${snapshot.id}`, true);
       await pubsub.publish(topic, encoder.encode(JSON.stringify(snapshot)));
       emitStatus(`published ${type}`, true);
     } catch (e) {
@@ -135,14 +141,17 @@ export const createReplicatedArchive = async ({
 
   const loadLatest = async () => {
     if (latestSnapshot) {
+      emitStatus(`reusing latest snapshot ${latestSnapshot.id}`, true);
       applySnapshot(latestSnapshot.payload, { local: true, record: latestSnapshot });
       return latestSnapshot;
     }
 
     const all = await getAllRecords(db, storeName);
     const snapshots = all.filter((record) => record.type === "snapshot");
+    emitStatus(`loaded ${all.length} stored record${all.length === 1 ? "" : "s"}`, true);
     latestSnapshot = snapshots.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)).at(-1) || null;
     if (latestSnapshot) {
+      emitStatus(`loaded latest snapshot ${latestSnapshot.id}`, true);
       applySnapshot(latestSnapshot.payload, { local: true, record: latestSnapshot });
     }
     return latestSnapshot;
@@ -150,6 +159,7 @@ export const createReplicatedArchive = async ({
 
   const subscribe = async () => {
     if (!pubsub?.subscribe) return;
+    emitStatus(`subscribing to ${topic}`, true);
     await pubsub.subscribe(topic);
     pubsub.addEventListener?.("message", async (event) => {
       const detail = event?.detail || event;
@@ -158,9 +168,10 @@ export const createReplicatedArchive = async ({
       if (messageTopic !== topic || !data) return;
       try {
         const record = JSON.parse(decoder.decode(data));
+        emitStatus(`received remote ${record?.type || "record"} ${record?.id || "unknown"}`, true);
         await applyRecord(record, { local: false });
       } catch {
-        // Ignore malformed remote records.
+        emitStatus("ignored malformed remote record", false);
       }
     });
   };
@@ -174,6 +185,7 @@ export const createReplicatedArchive = async ({
 
   const stop = async () => {
     try {
+      emitStatus(`unsubscribing from ${topic}`, true);
       await pubsub?.unsubscribe?.(topic);
     } catch {
       // best-effort
