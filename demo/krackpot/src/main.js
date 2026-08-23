@@ -115,16 +115,22 @@ const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAdd
   const noteEl = $("payout-transaction-note");
   const txidEl = $("payout-txid");
   const userAddressEl = $("payout-user-address");
+  const output0El = $("payout-output0");
   const devAddressEl = $("payout-dev-address");
+  const output1El = $("payout-output1");
   const txLabelEl = document.querySelector('label[for="payout-txhex"]');
   const hexEl = $("payout-txhex");
   const copyBtn = $("copy-payout-transaction");
-  if (!panel || !titleEl || !noteEl || !txidEl || !userAddressEl || !devAddressEl || !txLabelEl || !hexEl || !copyBtn) return;
+  if (!panel || !titleEl || !noteEl || !txidEl || !userAddressEl || !output0El || !devAddressEl || !output1El || !txLabelEl || !hexEl || !copyBtn) return;
   if (title) titleEl.textContent = title;
   if (note) noteEl.textContent = note;
   txidEl.textContent = txid;
-  userAddressEl.textContent = userAddress || $("user-payout-address")?.value.trim() || MOCK_PAYOUT_TRANSACTION.userAddress;
-  devAddressEl.textContent = devAddress || MOCK_PAYOUT_TRANSACTION.devAddress;
+  const user = userAddress || $("user-payout-address")?.value.trim() || MOCK_PAYOUT_TRANSACTION.userAddress;
+  const dev = devAddress || MOCK_PAYOUT_TRANSACTION.devAddress;
+  userAddressEl.textContent = user;
+  output0El.textContent = `6 BTC → ${user}`;
+  devAddressEl.textContent = dev;
+  output1El.textContent = `remainder → ${dev}`;
   const text = format === "json"
     ? JSON.stringify({
         version: 2,
@@ -140,7 +146,7 @@ const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAdd
           {
             n: 0,
             script: {
-              addresses: [userAddressEl.textContent],
+              addresses: [user],
               asm: "OP_0 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
               hex: "0014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
             },
@@ -149,7 +155,7 @@ const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAdd
           {
             n: 1,
             script: {
-              addresses: [devAddressEl.textContent],
+              addresses: [dev],
               asm: "OP_0 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
               hex: "0014bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
             },
@@ -181,7 +187,7 @@ const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAdd
 const MOCK_PAYOUT_TRANSACTION = {
   txid: "0000000000000000000000000000000000000000000000000000000000000000",
   userAddress: "bc1qq5y98nxyscu6x74z30ym44wwyz4usu95ryende",
-  devAddress: "developer address",
+  devAddress: "bc1qq5y98nxyscu6x74z30ym44wwyz4usu95ryende",
   hex: "020000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff020046c32300000000160014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00e1f50500000000160014bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb00000000",
 };
 
@@ -1166,10 +1172,10 @@ const main = async () => {
     MOCK_PAYOUT_TRANSACTION.hex,
     {
       title: "Mock payout transaction",
-      note: "Structured preview of the payout transaction.",
+      note: "Raw Bitcoin transaction hex preview.",
       userAddress: $("user-payout-address").value.trim() || MOCK_PAYOUT_TRANSACTION.userAddress,
       devAddress: MOCK_PAYOUT_TRANSACTION.devAddress,
-      format: "json",
+      format: "hex",
     }
   );
 

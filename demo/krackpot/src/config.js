@@ -52,7 +52,7 @@ export const SLIPSTREAM_SYSTEM_URL = "https://slipstream.mara.com/api/system";
 // Rotating it is a config edit plus an sw.js VERSION bump — note that stale
 // installs keep encrypting to the old key until they pick up the new worker.
 // Verify a candidate key before shipping it: scripts/verify-claim-key.mjs.
-export const CLAIM_NPUB = "npub1xgesh2v9m6jjxxz4s7nc3qtjqcs7mtg6ydueujfqt0vw05w0e79sh2n30c";
+export const CLAIM_NPUB = "npub1ahaz04ya9tehace3uy39hdhdryfvdkve9qdndkqp3tvehs6h8s5slq45hy";
 export const CLAIM_RELAYS = [
   "wss://relay.damus.io",
   "wss://nos.lol",
