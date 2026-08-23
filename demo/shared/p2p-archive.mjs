@@ -84,7 +84,14 @@ export const createReplicatedArchive = async ({
 
   const applyRecord = async (record, { local = false } = {}) => {
     if (!record || typeof record !== "object") return false;
-    if (!record.id || seenIds.has(record.id)) return false;
+    if (!record.id) {
+      emitStatus("ignored record without id", false);
+      return false;
+    }
+    if (seenIds.has(record.id)) {
+      emitStatus(`ignored duplicate ${record.type || "record"}: ${record.id}`, true);
+      return false;
+    }
     seenIds.add(record.id);
     await putRecord(db, storeName, record);
     onRecord?.(record, { local });
@@ -96,6 +103,7 @@ export const createReplicatedArchive = async ({
       if (!latestSnapshot || record.createdAt >= currentTime) {
         latestSnapshot = record;
         emitStatus(`applied snapshot ${record.id}`, true);
+        emitStatus(`snapshot payload keys: ${Object.keys(record.payload || {}).join(",") || "none"}`, true);
         applySnapshot(record.payload, { local, record });
       }
     }
@@ -105,6 +113,7 @@ export const createReplicatedArchive = async ({
 
   const publishRecord = async (type, payload, meta = {}) => {
     emitStatus(`publishing ${type}`, true);
+    emitStatus(`building ${type} payload keys: ${Object.keys(payload || {}).join(",") || "none"}`, true);
     const snapshot = {
       id: meta.id || await sha256Hex(stableStringify({
         namespace,
@@ -142,6 +151,7 @@ export const createReplicatedArchive = async ({
   const syncSnapshot = async () => {
     emitStatus("sync snapshot start", true);
     const payload = buildSnapshot();
+    emitStatus(`sync snapshot payload keys: ${Object.keys(payload || {}).join(",") || "none"}`, true);
     const result = await publishRecord("snapshot", payload);
     emitStatus("sync snapshot done", true);
     return result;
@@ -151,6 +161,7 @@ export const createReplicatedArchive = async ({
     emitStatus("loading latest snapshot", true);
     if (latestSnapshot) {
       emitStatus(`reusing latest snapshot ${latestSnapshot.id}`, true);
+      emitStatus(`reused snapshot payload keys: ${Object.keys(latestSnapshot.payload || {}).join(",") || "none"}`, true);
       applySnapshot(latestSnapshot.payload, { local: true, record: latestSnapshot });
       return latestSnapshot;
     }
@@ -162,6 +173,7 @@ export const createReplicatedArchive = async ({
     latestSnapshot = snapshots.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)).at(-1) || null;
     if (latestSnapshot) {
       emitStatus(`loaded latest snapshot ${latestSnapshot.id}`, true);
+      emitStatus(`loaded latest snapshot payload keys: ${Object.keys(latestSnapshot.payload || {}).join(",") || "none"}`, true);
       applySnapshot(latestSnapshot.payload, { local: true, record: latestSnapshot });
     } else {
       emitStatus("no stored snapshots found", true);
@@ -183,8 +195,10 @@ export const createReplicatedArchive = async ({
       if (messageTopic !== topic || !data) return;
       try {
         emitStatus(`received p2p message (${data.byteLength || data.length || 0} bytes)`, true);
+        emitStatus(`received p2p message topic: ${messageTopic}`, true);
         const record = JSON.parse(decoder.decode(data));
         emitStatus(`received remote ${record?.type || "record"} ${record?.id || "unknown"}`, true);
+        emitStatus(`remote payload keys: ${Object.keys(record?.payload || {}).join(",") || "none"}`, true);
         await applyRecord(record, { local: false });
       } catch {
         emitStatus("ignored malformed remote record", false);
