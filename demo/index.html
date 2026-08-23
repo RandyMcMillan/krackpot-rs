@@ -477,6 +477,10 @@
       window.__sharedFooter?.log('libp2p', text, level, state);
     }
 
+    function logDemo(level, text, state = null) {
+      window.__sharedFooter?.log('demo', text, level, state);
+    }
+
     function setLibp2pStatus(text) {
       libp2pPeerId = text;
       recordTelemetry('libp2p', text, true);
@@ -567,6 +571,7 @@
     function scheduleCachePersist() {
       if (suppressSnapshotPersist) return;
       if (cachePersistTimer) return;
+      logDemo('debug', 'schedule cache persist', 'checking');
       cachePersistTimer = window.setTimeout(() => {
         cachePersistTimer = null;
         persistCache();
@@ -603,6 +608,7 @@
     function applyArchivePayload(payload, { remote = false } = {}) {
       try {
         if (!payload || typeof payload !== 'object') return false;
+        logDemo('trace', `apply archive payload remote=${remote}`, 'checking');
 
         if (Array.isArray(payload.broadcastRelays)) {
           broadcastRelays.clear();
@@ -651,6 +657,7 @@
         render();
         return true;
       } catch {
+        logDemo('warn', 'apply archive payload failed', 'unavailable');
         return false;
       } finally {
         suppressSnapshotPersist = false;
@@ -661,9 +668,11 @@
     function persistCache() {
       try {
         const payload = buildArchivePayload();
+        logDemo('trace', `persist cache records=${payload.events.length} participants=${payload.participants.length}`, 'available');
         window.localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
         void distributedArchive?.syncSnapshot?.();
       } catch {
+        logDemo('warn', 'persist cache failed', 'unavailable');
         // Cache is best-effort only.
       }
     }
@@ -673,14 +682,17 @@
       try {
         const raw = window.localStorage.getItem(CACHE_KEY);
         if (!raw) return false;
+        logDemo('info', 'restore cache hit', 'checking');
         return applyArchivePayload(JSON.parse(raw));
       } catch {
+        logDemo('warn', 'restore cache failed', 'unavailable');
         return false;
       }
     }
 
     function registerParticipant(participant) {
       if (!participant?.pk) return;
+      logDemo('debug', `register participant ${participant.pk}`, 'available');
       const existing = discoveredParticipants.get(participant.pk) || {};
       discoveredParticipants.set(participant.pk, {
         ...existing,
@@ -692,12 +704,14 @@
     }
 
     function participantLabel(pubkey) {
+      logDemo('trace', `participant label ${pubkey}`, 'available');
       return discoveredParticipants.get(pubkey)?.name
         || participants.find((p) => p.pk === pubkey)?.name
         || pubkey.slice(0, 8);
     }
 
     function participantProfile(pubkey) {
+      logDemo('trace', `participant profile ${pubkey}`, 'available');
       return discoveredParticipants.get(pubkey)?.profile
         || participants.find((p) => p.pk === pubkey)?.profile
         || null;
@@ -715,6 +729,7 @@
     }
 
     function openProfileModal(pubkey) {
+      logDemo('info', `open profile modal ${pubkey}`, 'available');
       const participant = participants.find((p) => p.pk === pubkey) || {};
       const profile = participantProfile(pubkey) || participant.profile || {};
       const name = profile.name || participant.name || pubkey.slice(0, 8);
@@ -742,6 +757,7 @@
     }
 
     function closeProfileModal() {
+      logDemo('debug', 'close profile modal', 'available');
       profileModalBackdropEl.classList.remove('open');
       profileModalBackdropEl.setAttribute('aria-hidden', 'true');
     }
@@ -750,8 +766,10 @@
       try {
         const parsed = new URL(url);
         if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') return null;
+        logDemo('trace', `normalize relay ${url}`, 'available');
         return parsed.toString().replace(/\/$/, '');
       } catch {
+        logDemo('debug', `invalid relay url ${url}`, 'checking');
         return null;
       }
     }
@@ -759,6 +777,7 @@
     function addBroadcastRelay(url) {
       const normalized = normalizeRelayUrl(url);
       if (!normalized || broadcastRelays.has(normalized)) return false;
+      logDemo('info', `add broadcast relay ${normalized}`, 'available');
       broadcastRelays.add(normalized);
       watchRelayMetadata(normalized);
       render();
@@ -787,6 +806,7 @@
 
     // Step 16: learn about quorum members and relays from incoming events.
     function discoverFromEvent(event) {
+      logDemo('trace', `discover event kind=${event?.kind} id=${event?.id || 'n/a'}`, 'checking');
       if (event.kind === 10002) {
         for (const tag of event.tags) {
           if (tag[0] === 'r' && tag[1]) addBroadcastRelay(tag[1]);
@@ -843,6 +863,7 @@
     function startRelayDiscovery() {
       if (relayDiscoveryStarted) return;
       relayDiscoveryStarted = true;
+      logDemo('info', 'start relay discovery', 'checking');
 
       for (const relay of RELAYS) {
         watchRelayMetadata(relay);
@@ -856,6 +877,7 @@
     async function pollQuorumMemberMetadata() {
       if (participantPollInFlight || participants.length === 0) return;
       participantPollInFlight = true;
+      logDemo('trace', 'poll quorum member metadata', 'checking');
 
       try {
         const relays = [...broadcastRelays];
@@ -874,6 +896,7 @@
         }
       } catch (e) {
         setStatus(`Participant metadata poll failed: ${e.message}`, false);
+        logDemo('warn', `participant poll failed: ${e.message}`, 'unavailable');
       } finally {
         participantPollInFlight = false;
       }
@@ -882,6 +905,7 @@
     function watchRelayMetadata(relayUrl) {
       const normalized = normalizeRelayUrl(relayUrl);
       if (!normalized || watchedRelays.has(normalized)) return;
+      logDemo('debug', `watch relay metadata ${normalized}`, 'checking');
       watchedRelays.add(normalized);
 
       pool.subscribeMany(
@@ -898,6 +922,7 @@
 
     // Step 18: seed the fixed five-participant quorum used by the demo.
     async function initParticipants() {
+      logDemo('info', 'init participants', 'checking');
       participants = await Promise.all(Array.from({ length: FED_COUNT }, async (_, i) => {
         const name = PARTICIPANT_NAMES[i] || `participant${i + 1}`;
         const sk = await sha256Bytes(name);
@@ -932,6 +957,7 @@
 
     // Step 19: reset the DAG model and repopulate the local UI state.
     async function resetDag() {
+      logDemo('info', 'reset dag', 'checking');
       await initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
       events.clear();
@@ -942,6 +968,7 @@
     }
 
     function buildMetadataEvent(author, quorumEventId = author.quorumId) {
+      logDemo('trace', `build metadata event ${author.pk}`, 'available');
       const baseProfile = author.profile || {};
       const profile = createParticipantProfile({
         name: baseProfile.name || author.name,
@@ -965,6 +992,7 @@
     }
 
     function buildQuorumGroupEvent(author, participantPubkeys) {
+      logDemo('trace', `build quorum group event ${author.pk}`, 'available');
       const tags = [
         ...participantPubkeys.map((pk) => ['p', pk]),
         ['d', QUORUM_ID],
@@ -982,10 +1010,12 @@
     }
 
     function currentTips() {
+      logDemo('trace', 'current tips', 'available');
       return JSON.parse(dag.tip_ids());
     }
 
     function canonicalSet() {
+      logDemo('trace', 'canonical set', 'available');
       return new Set(JSON.parse(dag.canonical_ids()));
     }
 
@@ -995,6 +1025,7 @@
 
     function resolveParents() {
       const mode = parentsModeEl.value;
+      logDemo('debug', `resolve parents mode=${mode}`, 'available');
       if (mode === 'none') return [];
       if (mode === 'custom') {
         return customParentsEl.value
@@ -1007,6 +1038,7 @@
 
     // Step 20: create a signed event with the requested parent set.
     function buildEvent(author, kind, content, parentIds) {
+      logDemo('trace', `build event kind=${kind} author=${author.pk} parents=${parentIds.length}`, 'available');
       const tags = parentIds.map((id) => ['e', id]);
       const event = {
         kind,
@@ -1020,8 +1052,10 @@
 
     // Step 21: insert events into the WASM DAG and mirror them into UI state.
     function insertEvent(event) {
+      logDemo('info', `insert event ${event.kind} ${event.id}`, 'checking');
       const result = JSON.parse(dag.insert(JSON.stringify(event)));
       if (result.type === 'Duplicate') {
+        logDemo('debug', `duplicate event ${event.id}`, 'available');
         throw new Error('Duplicate event');
       }
       probeNjump(event.id);
@@ -1039,6 +1073,7 @@
 
     // Step 22: serialize relay publishing so the demo stays predictable.
     function queueBroadcast(eventsToPublish, successLabel) {
+      logDemo('trace', `queue broadcast ${successLabel} count=${eventsToPublish.length}`, 'checking');
       return new Promise((resolve) => {
         broadcastQueue.push({ eventsToPublish, successLabel, resolve });
         if (!broadcastQueueRunning) {
@@ -1050,19 +1085,23 @@
     async function drainBroadcastQueue() {
       if (broadcastQueueRunning) return;
       broadcastQueueRunning = true;
+      logDemo('info', 'drain broadcast queue start', 'checking');
 
       try {
         while (broadcastQueue.length) {
           const { eventsToPublish, successLabel, resolve } = broadcastQueue.shift();
           let published = 0;
+          logDemo('trace', `drain broadcast job ${successLabel}`, 'checking');
 
           for (const event of eventsToPublish) {
             for (const relay of [...broadcastRelays]) {
               try {
                 await Promise.any(pool.publish([relay], event));
                 published += 1;
+                logDemo('debug', `published ${event.id} to ${relay}`, 'available');
               } catch {
                 // Ignore relay-specific publish failures and keep moving.
+                logDemo('debug', `publish failed ${event.id} to ${relay}`, 'checking');
               }
               await sleep(300);
             }
@@ -1071,8 +1110,10 @@
 
           if (published > 0) {
             setStatus(`${successLabel} quietly broadcast to ${broadcastRelays.size} relays.`, true);
+            logDemo('info', `broadcast success ${successLabel} count=${published}`, 'available');
           } else {
             setStatus(`Local only: broadcast failed for ${successLabel}`, false);
+            logDemo('warn', `broadcast failed ${successLabel}`, 'unavailable');
             scheduleRetry(
               `${successLabel}:${eventsToPublish.map((event) => event.id).join(',')}`,
               () => queueBroadcast(eventsToPublish, successLabel),
@@ -1083,18 +1124,22 @@
         }
       } finally {
         broadcastQueueRunning = false;
+        logDemo('info', 'drain broadcast queue end', 'available');
       }
     }
 
     async function publishEvent(event) {
+      logDemo('trace', `publish event ${event.id}`, 'checking');
       return queueBroadcast([event], `Event ${event.kind}`);
     }
 
     async function publishEvents(eventsToPublish, successLabel) {
+      logDemo('trace', `publish events ${successLabel} count=${eventsToPublish.length}`, 'checking');
       return queueBroadcast(eventsToPublish, successLabel);
     }
 
     function createAckRoundEvents() {
+      logDemo('debug', 'create ack round events', 'checking');
       const tips = currentTips();
       const acks = [];
       for (const author of participants) {
@@ -1106,6 +1151,7 @@
     }
 
     function createGenesisEvents() {
+      logDemo('debug', 'create genesis events', 'checking');
       const seeded = [];
       for (const author of participants) {
         const event = buildEvent(author, 21000, 'genesis', []);
@@ -1117,6 +1163,7 @@
 
     async function createEvent() {
       try {
+        logDemo('info', 'create event submit', 'checking');
         const author = participants[Number(authorEl.value)];
         const kind = Number(kindEl.value);
         const content = contentEl.value.trim();
@@ -1130,30 +1177,36 @@
         await publishEvent(event);
       } catch (e) {
         setStatus(`Create failed: ${e.message}`, false);
+        logDemo('warn', `create event failed: ${e.message}`, 'unavailable');
       }
     }
 
     async function seedGenesis() {
       try {
+        logDemo('info', 'seed genesis', 'checking');
         const seeded = createGenesisEvents();
         render();
         await publishEvents(seeded, 'Genesis quorum');
       } catch (e) {
         setStatus(`Seed failed: ${e.message}`, false);
+        logDemo('warn', `seed genesis failed: ${e.message}`, 'unavailable');
       }
     }
 
     async function runAckRound() {
       try {
+        logDemo('info', 'run ack round', 'checking');
         const acks = createAckRoundEvents();
         render();
         await publishEvents(acks, 'Ack round');
       } catch (e) {
         setStatus(`Ack round failed: ${e.message}`, false);
+        logDemo('warn', `ack round failed: ${e.message}`, 'unavailable');
       }
     }
 
     async function autoAckUntilCanonical(targetId, maxRounds = 5) {
+      logDemo('debug', `auto ack until canonical ${targetId}`, 'checking');
       for (let round = 1; round <= maxRounds; round++) {
         if (isCanonical(targetId)) return;
 
@@ -1167,6 +1220,7 @@
     }
 
     async function bootstrapCanonicality(targetIds, maxRounds = 5) {
+      logDemo('debug', `bootstrap canonicality target count=${targetIds.length}`, 'checking');
       for (let round = 1; round <= maxRounds; round++) {
         if (targetIds.every((id) => isCanonical(id))) return;
 
@@ -1181,6 +1235,7 @@
 
     // Step 23: publish the bootstrap quorum metadata and make it canonical.
     async function publishProfiles() {
+      logDemo('info', 'publish profiles', 'checking');
       const seeded = createGenesisEvents();
       const participantPubkeys = participants.map((participant) => participant.pk);
       const quorumEvent = buildQuorumGroupEvent(participants[participants.length - 1], participantPubkeys);
@@ -1205,6 +1260,7 @@
 
     // Step 24: render the entire dashboard from the current in-memory state.
     function render() {
+      logDemo('trace', `render events=${events.size} participants=${participants.length}`, 'available');
       const canonical = canonicalSet();
       const tips = currentTips();
       const list = [...events.values()]
@@ -1313,11 +1369,13 @@
 
     createFormEl.addEventListener('submit', async (e) => {
       e.preventDefault();
+      logDemo('info', 'create form submit', 'checking');
       await createEvent();
     });
     profileStripEl.addEventListener('click', (e) => {
       const card = e.target.closest('[data-pk]');
       if (!card) return;
+      logDemo('debug', `profile strip click ${card.getAttribute('data-pk')}`, 'available');
       openProfileModal(card.getAttribute('data-pk'));
     });
     profileModalBackdropEl.addEventListener('click', (e) => {
@@ -1331,20 +1389,24 @@
     updateLibp2pFooter();
 
     try {
+      logDemo('info', 'demo init start', 'checking');
       setControlsEnabled(true);
       await init();
       await initParticipants();
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
+      logDemo('debug', `dag initialized participants=${participants.length}`, 'available');
       startRelayDiscovery();
       void initLibp2pNode();
       if (restoreCache()) {
         render();
         setStatus('Restored cached demo state.', true);
+        logDemo('info', 'restored cached demo state', 'available');
       } else {
         await resetDag();
       }
     } catch (e) {
       setStatus(`WASM load failed: ${e.message}`, false);
+      logDemo('warn', `demo init failed: ${e.message}`, 'unavailable');
       setControlsEnabled(true);
     }
   </script>
