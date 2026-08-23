@@ -143,7 +143,6 @@
       <button id="ackRoundBtn">Run Ack Round</button>
       <span id="status" class="status">Loading WASM...</span>
     </div>
-    <div class="small muted" style="margin-top:8px;">Tip: open this via HTTP (GitHub Pages or local server), not <span class="mono">file://</span>.</div>
   </div>
 
   <div class="panel">
@@ -218,10 +217,7 @@
     createSharedHeader(document.getElementById('sharedHeader'), {
       title: 'nostr-dag',
       logoHref: resolveHref('./', window.location.href),
-      subtitleHtml: `
-        This page runs the Rust DAG logic in WASM and lets you create Nostr events locally.
-        <div class="small muted" style="margin-top:6px;">Browser publisher sends federation ack events to public relays too.</div>
-      `,
+      subtitleHtml: '',
       navItems: [
         { label: 'Demo', current: true },
         { label: 'Git viewer', href: resolveHref('./git/', window.location.href) },
