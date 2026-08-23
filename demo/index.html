@@ -237,13 +237,20 @@
   <script type="module">
     // Step 4: import the WASM DAG and browser-only Nostr/libp2p helpers.
     import init, { WasmDag } from './pkg/nostr_dag.js';
+    import { createReplicatedArchive } from './shared/p2p-archive.mjs';
     import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
     import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
     import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
     import { createLibp2p } from 'https://esm.sh/libp2p';
+    import { autoNAT } from 'https://esm.sh/@libp2p/autonat';
+    import { bootstrap } from 'https://esm.sh/@libp2p/bootstrap';
+    import { circuitRelayTransport } from 'https://esm.sh/@libp2p/circuit-relay-v2';
+    import { dcutr } from 'https://esm.sh/@libp2p/dcutr';
+    import { gossipsub } from 'https://esm.sh/@libp2p/gossipsub';
     import { identify } from 'https://esm.sh/@libp2p/identify';
     import { webSockets } from 'https://esm.sh/@libp2p/websockets';
     import { webRTC } from 'https://esm.sh/@libp2p/webrtc';
+    import { webRTCDirect } from 'https://esm.sh/@libp2p/webrtc-direct';
     import { noise } from 'https://esm.sh/@chainsafe/libp2p-noise';
     import { yamux } from 'https://esm.sh/@chainsafe/libp2p-yamux';
 
@@ -255,7 +262,15 @@
       'wss://relay.primal.net',
       'wss://nostr.wine',
     ];
+    const DEFAULT_BOOTSTRAP_PEERS = [
+      '/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
+      '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
+      '/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
+      '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
+      '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt',
+    ];
     const CACHE_KEY = 'krackpot-rs-demo-cache-v1';
+    const BOOTSTRAP_KEY = 'krackpot-rs-demo-bootstrap-peers-v1';
     const SITE_URL = 'https://randymcmillan.github.io/krackpot-rs';
     const QUORUM_ID = 'krackpot-rs-quorum-5';
     const PARTICIPANT_NAMES = ['alice', 'bob', 'carol', 'dave', 'eve'];
@@ -272,6 +287,7 @@
     const watchedRelays = new Set();
     const retryTimers = new Map();
     const broadcastQueue = [];
+    const telemetryLog = [];
     let cachePersistTimer = null;
     let njumpPollTimer = null;
     let profilePollTimer = null;
@@ -280,6 +296,8 @@
     let participantPollInFlight = false;
     let broadcastQueueRunning = false;
     let relayDiscoveryStarted = false;
+    let distributedArchive = null;
+    let suppressSnapshotPersist = false;
     let libp2pPeerId = 'starting...';
     let libp2pModuleCounts = { loaded: 0, failed: 0, total: 0 };
 
@@ -443,9 +461,21 @@
     }
 
     // Step 12: centralize status updates so the footer and badges stay in sync.
+    function recordTelemetry(kind, detail, ok = true) {
+      telemetryLog.push({
+        ts: Date.now(),
+        kind,
+        detail,
+        ok,
+      });
+      if (telemetryLog.length > 250) telemetryLog.splice(0, telemetryLog.length - 250);
+    }
+
     function setStatus(message, ok = true) {
       statusEl.textContent = message;
       statusEl.className = `status ${ok ? 'ok' : 'err'}`;
+      recordTelemetry('status', message, ok);
+      scheduleCachePersist();
     }
 
     function setControlsEnabled(enabled) {
@@ -463,6 +493,7 @@
 
     function setLibp2pStatus(text) {
       libp2pPeerId = text;
+      recordTelemetry('libp2p', text, true);
       window.__sharedFooter?.log('libp2p', text);
       updateLibp2pFooter();
       render();
@@ -470,6 +501,7 @@
 
     function setLibp2pModuleCounts(counts) {
       libp2pModuleCounts = counts;
+      recordTelemetry('libp2p-modules', `${counts.loaded}/${counts.total}`, counts.failed === 0);
       updateLibp2pFooter();
     }
     window.__setLibp2pModuleCounts = setLibp2pModuleCounts;
@@ -477,15 +509,62 @@
     // Step 13: start the optional libp2p node after the page is usable.
     async function initLibp2pNode() {
       try {
+        const bootstrapPeers = loadBootstrapPeers();
         const node = await createLibp2p({
-          transports: [webSockets(), webRTC()],
+          transports: [
+            webSockets(),
+            webRTC(),
+            webRTCDirect(),
+            circuitRelayTransport({ discoverRelays: 2 }),
+          ],
           connectionEncrypters: [noise()],
           streamMuxers: [yamux()],
-          services: { identify: identify() },
+          addresses: {
+            listen: ['/webrtc', '/p2p-circuit'],
+          },
+          services: {
+            identify: identify(),
+            autoNAT: autoNAT(),
+            dcutr: dcutr(),
+            pubsub: gossipsub({
+              allowPublishToZeroTopicPeers: true,
+              emitSelf: true,
+            }),
+          },
+          peerDiscovery: bootstrapPeers.length ? [
+            bootstrap({
+              list: bootstrapPeers,
+              interval: 60_000,
+              timeout: 3_000,
+            }),
+          ] : [],
         });
         await node.start();
+        window.__libp2pNode = node;
+        const describePeerEvent = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || 'peer';
+        node.addEventListener('peer:connect', (event) => {
+          recordTelemetry('peer-connect', describePeerEvent(event), true);
+          updateLibp2pFooter();
+        });
+        node.addEventListener('peer:disconnect', (event) => {
+          recordTelemetry('peer-disconnect', describePeerEvent(event), true);
+          updateLibp2pFooter();
+        });
         setLibp2pStatus(node.peerId.toString());
         console.log('Peer ID:', node.peerId.toString());
+        distributedArchive = await createReplicatedArchive({
+          namespace: CACHE_KEY,
+          topic: 'krackpot-rs/demo-state/v1',
+          node,
+          buildSnapshot: buildArchivePayload,
+          applySnapshot: (payload) => {
+            if (applyArchivePayload(payload, { remote: true })) {
+              setStatus('Restored distributed demo state.', true);
+            }
+          },
+          onStatus: (message, ok) => window.__sharedFooter?.log('archive', message, ok ? 'trace' : 'warn'),
+        });
+        await distributedArchive.start();
       } catch (e) {
         setLibp2pStatus('');
         console.warn('libp2p bootstrap failed:', e);
@@ -505,7 +584,31 @@
       return new Promise((resolve) => window.setTimeout(resolve, ms));
     }
 
+    function loadBootstrapPeers() {
+      const peers = new Set(DEFAULT_BOOTSTRAP_PEERS);
+      try {
+        const params = new URL(window.location.href).searchParams;
+        for (const value of params.getAll('bootstrap')) {
+          for (const entry of value.split(/[,\n]/)) {
+            const trimmed = entry.trim();
+            if (trimmed) peers.add(trimmed);
+          }
+        }
+        const saved = window.localStorage.getItem(BOOTSTRAP_KEY);
+        if (saved) {
+          for (const entry of saved.split(/[,\n]/)) {
+            const trimmed = entry.trim();
+            if (trimmed) peers.add(trimmed);
+          }
+        }
+      } catch {
+        // Bootstrap peers are optional and best-effort.
+      }
+      return [...peers];
+    }
+
     function scheduleCachePersist() {
+      if (suppressSnapshotPersist) return;
       if (cachePersistTimer) return;
       cachePersistTimer = window.setTimeout(() => {
         cachePersistTimer = null;
@@ -513,38 +616,37 @@
       }, 750);
     }
 
-    // Step 14: persist the current demo state to localStorage.
-    function persistCache() {
-      try {
-        const payload = {
-          participants: participants.map((participant) => ({
-            pk: participant.pk,
-            name: participant.name,
-            displayName: participant.displayName,
-            about: participant.about,
-            picture: participant.picture,
-            website: participant.website,
-            quorumId: participant.quorumId,
-            profile: participant.profile || null,
-          })),
-          events: [...events.values()],
-          discoveredParticipants: [...discoveredParticipants.values()],
-          njumpAvailability: [...njumpAvailability.entries()],
-          broadcastRelays: [...broadcastRelays],
-        };
-        window.localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
-      } catch {
-        // Cache is best-effort only.
-      }
+    function buildArchivePayload() {
+      return {
+        participants: participants.map((participant) => ({
+          pk: participant.pk,
+          name: participant.name,
+          displayName: participant.displayName,
+          about: participant.about,
+          picture: participant.picture,
+          website: participant.website,
+          quorumId: participant.quorumId,
+          profile: participant.profile || null,
+        })),
+        events: [...events.values()],
+        discoveredParticipants: [...discoveredParticipants.values()],
+        njumpAvailability: [...njumpAvailability.entries()],
+        broadcastRelays: [...broadcastRelays],
+        telemetry: {
+          status: statusEl.textContent,
+          libp2pPeerId,
+          libp2pModuleCounts,
+          relayDiscoveryStarted,
+          updatedAt: new Date().toISOString(),
+        },
+        telemetryLog: telemetryLog.slice(-250),
+      };
     }
 
-    // Step 15: restore the last saved demo state when the page reloads.
-    function restoreCache() {
+    function applyArchivePayload(payload, { remote = false } = {}) {
       try {
-        const raw = window.localStorage.getItem(CACHE_KEY);
-        if (!raw) return false;
+        if (!payload || typeof payload !== 'object') return false;
 
-        const payload = JSON.parse(raw);
         if (Array.isArray(payload.broadcastRelays)) {
           broadcastRelays.clear();
           for (const relay of payload.broadcastRelays) {
@@ -567,10 +669,10 @@
           }
         }
 
-        if (Array.isArray(payload.events)) {
+        if (Array.isArray(payload.events) && dag) {
           events.clear();
           for (const event of payload.events.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id))) {
-            if (!event?.id || !dag) continue;
+            if (!event?.id) continue;
             const restoredEvent = {
               id: event.id,
               kind: event.kind,
@@ -584,7 +686,37 @@
           }
         }
 
+        if (Array.isArray(payload.telemetryLog)) {
+          telemetryLog.splice(0, telemetryLog.length, ...payload.telemetryLog.filter((entry) => entry && typeof entry === 'object'));
+        }
+
+        suppressSnapshotPersist = remote;
+        render();
         return true;
+      } catch {
+        return false;
+      } finally {
+        suppressSnapshotPersist = false;
+      }
+    }
+
+    // Step 14: persist the current demo state to localStorage.
+    function persistCache() {
+      try {
+        const payload = buildArchivePayload();
+        window.localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+        void distributedArchive?.syncSnapshot?.();
+      } catch {
+        // Cache is best-effort only.
+      }
+    }
+
+    // Step 15: restore the last saved demo state when the page reloads.
+    function restoreCache() {
+      try {
+        const raw = window.localStorage.getItem(CACHE_KEY);
+        if (!raw) return false;
+        return applyArchivePayload(JSON.parse(raw));
       } catch {
         return false;
       }
@@ -1173,6 +1305,8 @@
         <li>${list.length} events</li>
         <li>${canonical.size} canonical</li>
         <li>threshold &gt; ${threshold} of ${participants.length}</li>
+        <li>telemetry records: ${telemetryLog.length}</li>
+        <li>libp2p peer: <span class="mono">${libp2pPeerId}</span></li>
         <li>quorum members (${quorumMembers.length}):
           <ul style="margin:6px 0 0 16px;">
             ${quorumMemberMarkup}
@@ -1268,8 +1402,10 @@
       ['@libp2p/logger', 'https://esm.sh/@libp2p/logger'],
       ['@libp2p/websockets', 'https://esm.sh/@libp2p/websockets'],
       ['@libp2p/webrtc', 'https://esm.sh/@libp2p/webrtc'],
+      ['@libp2p/webrtc-direct', 'https://esm.sh/@libp2p/webrtc-direct'],
       ['@libp2p/webtransport', 'https://esm.sh/@libp2p/webtransport'],
       ['@libp2p/circuit-relay-v2', 'https://esm.sh/@libp2p/circuit-relay-v2'],
+      ['@libp2p/dcutr', 'https://esm.sh/@libp2p/dcutr'],
       ['@libp2p/tcp', 'https://esm.sh/@libp2p/tcp'],
       ['@libp2p/memory', 'https://esm.sh/@libp2p/memory'],
       ['@chainsafe/libp2p-noise', 'https://esm.sh/@chainsafe/libp2p-noise'],
@@ -1408,8 +1544,10 @@
       'https://esm.sh/@libp2p/logger',
       'https://esm.sh/@libp2p/websockets',
       'https://esm.sh/@libp2p/webrtc',
+      'https://esm.sh/@libp2p/webrtc-direct',
       'https://esm.sh/@libp2p/webtransport',
       'https://esm.sh/@libp2p/circuit-relay-v2',
+      'https://esm.sh/@libp2p/dcutr',
       'https://esm.sh/@libp2p/tcp',
       'https://esm.sh/@libp2p/memory',
       'https://esm.sh/@chainsafe/libp2p-noise',
