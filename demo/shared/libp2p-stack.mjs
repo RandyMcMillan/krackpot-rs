@@ -21,10 +21,17 @@ export const DEFAULT_BOOTSTRAP_PEERS = [
 
 const peerLabel = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || "peer";
 
+const emitLog = (onLog, level, text, state = "checking") => {
+  onLog?.(level, text, state);
+  if (level !== "debug") {
+    onLog?.("debug", `[${level}] ${text}`, state);
+  }
+};
+
 const emitPeerEvent = (onPeer, onLog, kind, event, level = "debug", state = "checking") => {
   const peer = peerLabel(event);
   onPeer?.({ kind, peer, detail: event?.detail || null });
-  onLog?.(level, `peer ${kind}: ${peer}`, state);
+  emitLog(onLog, level, `peer ${kind}: ${peer}`, state);
 };
 
 export async function createSharedLibp2pStack({
@@ -34,8 +41,9 @@ export async function createSharedLibp2pStack({
   onStatus,
 } = {}) {
   const peers = [...new Set(bootstrapPeers.filter(Boolean))];
-  onLog?.("info", `bootstrapping with ${peers.length} peer${peers.length === 1 ? "" : "s"}`, "checking");
-  onLog?.("debug", `bootstrap peers configured: ${peers.length}`, "checking");
+  emitLog(onLog, "info", `bootstrapping with ${peers.length} peer${peers.length === 1 ? "" : "s"}`, "checking");
+  emitLog(onLog, "debug", `bootstrap peers configured: ${peers.length}`, "checking");
+  emitLog(onLog, "trace", "shared libp2p stack configuring transports and services", "checking");
 
   const node = await createLibp2p({
     transports: [
@@ -78,8 +86,9 @@ export async function createSharedLibp2pStack({
   });
 
   await node.start();
+  emitLog(onLog, "trace", "shared libp2p node started", "available");
   onStatus?.("started", node.peerId.toString());
-  onLog?.("info", `node started: ${node.peerId.toString()}`, "available");
+  emitLog(onLog, "info", `node started: ${node.peerId.toString()}`, "available");
 
   return {
     node,
