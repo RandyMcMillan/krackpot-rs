@@ -82,8 +82,9 @@
   .repo-title h2 { margin:0; font-size:32px; line-height:1.15; }
   .repo-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .repo-tabs { display:flex; gap:4px; align-items:flex-end; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-top:18px; padding:0 2px; }
-  .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:12px 14px 11px; border-bottom:2px solid transparent; color:var(--muted); text-decoration:none; }
-  .repo-tab.active { color:var(--button-fg); border-bottom-color:var(--accent); font-weight:600; }
+  .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:12px 14px 11px; border-bottom:2px solid transparent; color:var(--tab-fg); text-decoration:none; }
+  .repo-tab:hover { color:var(--tab-hover-fg); }
+  .repo-tab.active { color:var(--tab-active-fg); border-bottom-color:var(--accent); font-weight:600; }
   .repo-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; padding:12px 0 4px; }
   .repo-toolbar .spacer { flex:1 1 auto; }
   .repo-select { min-width:220px; }

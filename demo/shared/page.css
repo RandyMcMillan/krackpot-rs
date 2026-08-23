@@ -6,6 +6,7 @@
   --status-checking:#f59e0b; --status-available:#22c55e; --status-unavailable:#ef4444;
   --diff-add:#22c55e; --diff-del:#ef4444; --success-link:#22c55e;
   --chip-canonical-bg:#14532d; --chip-pending-bg:#7c2d12;
+  --tab-fg:#94a3b8; --tab-hover-fg:#ffffff; --tab-active-fg:#ffffff;
 }
 
 @media (prefers-color-scheme: light) {
@@ -16,6 +17,7 @@
     --status-checking:#d97706; --status-available:#15803d; --status-unavailable:#dc2626;
     --diff-add:#15803d; --diff-del:#dc2626; --success-link:#15803d;
     --chip-canonical-bg:#dcfce7; --chip-pending-bg:#ffedd5;
+    --tab-fg:#475569; --tab-hover-fg:#0f172a; --tab-active-fg:#ffffff;
   }
 }
 

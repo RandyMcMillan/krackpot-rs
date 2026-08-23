@@ -49,8 +49,9 @@
     .repo-title h2 { margin:0; font-size:28px; line-height:1.15; }
     .repo-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
     .repo-tabs { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-top:14px; }
-    .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:2px solid transparent; color:var(--muted); text-decoration:none; }
-    .repo-tab.active { color:var(--button-fg); border-bottom-color:var(--accent); font-weight:600; }
+    .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:2px solid transparent; color:var(--tab-fg); text-decoration:none; }
+    .repo-tab:hover { color:var(--tab-hover-fg); }
+    .repo-tab.active { color:var(--tab-active-fg); border-bottom-color:var(--accent); font-weight:600; }
     .repo-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; }
     .repo-select { min-width:220px; }
     .repo-layout { display:grid; grid-template-columns: minmax(0, 1fr); gap:14px; margin-top:14px; }
