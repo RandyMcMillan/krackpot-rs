@@ -268,16 +268,19 @@
       title: 'Logger',
       initialState: 'idle',
       initialTitle: 'starting...',
-      initialLevel: 'debug',
+      initialLevel: 'trace',
     });
     const refreshBtn = document.getElementById('refreshBtn');
-    footer.setLevel('debug');
+    footer.setLevel('trace');
 
     async function initGitP2P() {
       try {
         const { node } = await createSharedLibp2pStack({
           onLog: (level, text, state) => footer.log('libp2p', text, level, state),
-          onPeer: ({ kind, peer }) => footer.log('libp2p', `${kind}: ${peer}`, 'debug', kind === 'connect' ? 'available' : 'checking'),
+          onPeer: ({ kind, peer, detail }) => {
+            footer.log('libp2p', `${kind}: ${peer}`, 'debug', kind === 'connect' ? 'available' : 'checking');
+            footer.log('libp2p', `${kind} detail: ${detail ? JSON.stringify(detail) : 'none'}`, 'trace', kind === 'connect' ? 'available' : 'checking');
+          },
         });
         window.__gitP2pNode = node;
       } catch (e) {

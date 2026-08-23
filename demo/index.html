@@ -499,8 +499,9 @@
         const { node } = await createSharedLibp2pStack({
           bootstrapPeers,
           onLog: (level, text, state) => logLibp2p(level, text, state),
-          onPeer: ({ kind, peer }) => {
+          onPeer: ({ kind, peer, detail }) => {
             recordTelemetry(`peer-${kind}`, peer, kind !== 'disconnect');
+            logLibp2p('trace', `peer ${kind} detail: ${detail ? JSON.stringify(detail) : 'none'}`, kind === 'connected' ? 'available' : 'checking');
             updateLibp2pFooter();
           },
         });
@@ -1405,9 +1406,9 @@
       title: 'Logger',
       initialState: 'idle',
       initialTitle: 'starting...',
-      initialLevel: 'debug',
+      initialLevel: 'trace',
     });
-    window.__sharedFooter.setLevel('debug');
+    window.__sharedFooter.setLevel('trace');
     window.__libp2pModuleRegistry = registry;
     window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
   </script>

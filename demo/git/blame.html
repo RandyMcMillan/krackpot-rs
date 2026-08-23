@@ -161,8 +161,8 @@
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
 
     const fs = new LightningFS('git-viewer');
-    const footer = createLoggerFooter(document.getElementById('pageFooter'), { title: 'Logger', initialState: 'idle', initialTitle: 'starting...', initialLevel: 'debug' });
-    footer.setLevel('debug');
+    const footer = createLoggerFooter(document.getElementById('pageFooter'), { title: 'Logger', initialState: 'idle', initialTitle: 'starting...', initialLevel: 'trace' });
+    footer.setLevel('trace');
     const statusEl = document.getElementById('status');
     const viewEl = document.getElementById('view');
     const repos = [
@@ -187,7 +187,10 @@
       try {
         const { node } = await createSharedLibp2pStack({
           onLog: (level, text, state) => footer.log('libp2p', text, level, state),
-          onPeer: ({ kind, peer }) => footer.log('libp2p', `${kind}: ${peer}`, 'debug', kind === 'connect' ? 'available' : 'checking'),
+          onPeer: ({ kind, peer, detail }) => {
+            footer.log('libp2p', `${kind}: ${peer}`, 'debug', kind === 'connect' ? 'available' : 'checking');
+            footer.log('libp2p', `${kind} detail: ${detail ? JSON.stringify(detail) : 'none'}`, 'trace', kind === 'connect' ? 'available' : 'checking');
+          },
         });
         window.__gitBlameP2pNode = node;
       } catch (e) {
