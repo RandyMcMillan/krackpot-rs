@@ -61,16 +61,16 @@
   .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; margin-top:10px; background:var(--status-bg); }
   .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
   .status-idle { color: var(--muted); }
-  .status-checking { color: #f59e0b; }
-  .status-available { color: #22c55e; }
-  .status-unavailable { color: #ef4444; }
+  .status-checking { color: var(--status-checking); }
+  .status-available { color: var(--status-available); }
+  .status-unavailable { color: var(--status-unavailable); }
   .ok { background:var(--status-ok); }
   .err { background:var(--status-err); }
   .grid { display:grid; grid-template-columns: 1fr 2fr; gap:14px; }
     .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
-    .canonical { background:#065f46; }
-    .pending { background:#78350f; }
-    .njump-link { background:transparent; padding:0; color:#22c55e; text-decoration:none; }
+    .canonical { background:var(--chip-canonical-bg); color:var(--fg); }
+    .pending { background:var(--chip-pending-bg); color:var(--fg); }
+    .njump-link { background:transparent; padding:0; color:var(--success-link); text-decoration:none; }
     .njump-link:hover { text-decoration:underline; }
     .event { border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--surface); }
     .avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; border: 1px solid var(--border); background: var(--surface-strong); }

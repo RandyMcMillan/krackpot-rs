@@ -105,27 +105,27 @@
   .repo-files-empty { padding:16px; }
   .repo-commit-list { display:grid; gap:10px; }
   .repo-commit-item { display:block; border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; color:inherit; text-decoration:none; }
-  .repo-commit-item:hover { background:rgba(124,58,237,.08); }
+  .repo-commit-item:hover { background:rgba(251,146,60,.12); }
   .repo-commit-top { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
   .repo-commit-summary { margin-top:6px; font-weight:500; }
   .repo-commit-meta { margin-top:6px; color:var(--muted); font-size:12px; }
   .repo-diff-file { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:10px; margin-top:10px; }
   .repo-diff-body { margin:10px 0 0; padding:10px; overflow:auto; white-space:pre; background:var(--surface-strong); border-radius:6px; font-size:12px; line-height:1.45; }
-  .repo-diff-body .add { color:#22c55e; }
-  .repo-diff-body .del { color:#ef4444; }
+  .repo-diff-body .add { color:var(--diff-add); }
+  .repo-diff-body .del { color:var(--diff-del); }
   .repo-diff-body .ctx { color:var(--fg); }
   .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; background:var(--status-bg); }
   .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
   .status-idle { color: var(--muted); }
-  .status-checking { color: #f59e0b; }
-  .status-available { color: #22c55e; }
-  .status-unavailable { color: #ef4444; }
+  .status-checking { color: var(--status-checking); }
+  .status-available { color: var(--status-available); }
+  .status-unavailable { color: var(--status-unavailable); }
   .health-badge { display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:var(--status-bg); font-size:12px; line-height:1; white-space:nowrap; }
   .health-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
   .health-idle { color: var(--muted); }
-  .health-checking { color: #f59e0b; }
-  .health-available { color: #22c55e; }
-  .health-unavailable { color: #ef4444; }
+  .health-checking { color: var(--status-checking); }
+  .health-available { color: var(--status-available); }
+  .health-unavailable { color: var(--status-unavailable); }
   .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
   .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--status-bg); }
   .list { list-style:none; padding:0; margin:0; }
