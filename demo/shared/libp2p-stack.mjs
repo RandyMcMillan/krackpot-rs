@@ -52,12 +52,14 @@ export async function createSharedLibp2pStack({
   onStatus,
 } = {}) {
   const peers = [...new Set(bootstrapPeers.filter(Boolean))];
+  emitLog(onLog, "trace", `bootstrap peers: ${peers.join(" | ") || "none"}`, "checking");
   emitLog(onLog, "info", `bootstrapping with ${peers.length} peer${peers.length === 1 ? "" : "s"}`, "checking");
   emitLog(onLog, "debug", `bootstrap peers configured: ${peers.length}`, "checking");
   emitLog(onLog, "trace", "shared libp2p stack configuring transports and services", "checking");
   emitLog(onLog, "trace", `transports: webSockets, webRTC, webRTCDirect, circuitRelayTransport`, "checking");
   emitLog(onLog, "trace", `services: identify, autoNAT, dcutr, pubsub`, "checking");
 
+  emitLog(onLog, "trace", "constructing libp2p node", "checking");
   const node = await createLibp2p({
     transports: [
       webSockets(),
@@ -87,6 +89,7 @@ export async function createSharedLibp2pStack({
       }),
     ] : [],
   });
+  emitLog(onLog, "trace", "libp2p node constructed", "checking");
 
   node.addEventListener("peer:discovery", (event) => {
     emitPeerEvent(onPeer, onLog, "discovered", event, "debug", "checking");
@@ -98,11 +101,13 @@ export async function createSharedLibp2pStack({
     emitPeerEvent(onPeer, onLog, "disconnected", event, "debug", "checking");
   });
 
+  emitLog(onLog, "trace", "starting libp2p node", "checking");
   await node.start();
   emitLog(onLog, "trace", "shared libp2p node started", "available");
   emitLog(onLog, "trace", `listen addrs: ${node.getMultiaddrs?.().map?.((m) => m.toString()).join(" | ") || "n/a"}`, "available");
   onStatus?.("started", node.peerId.toString());
   emitLog(onLog, "info", `node started: ${node.peerId.toString()}`, "available");
+  emitLog(onLog, "debug", `peer id stable: ${node.peerId.toString()}`, "available");
 
   return {
     node,
