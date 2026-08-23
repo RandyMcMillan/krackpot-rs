@@ -491,10 +491,14 @@
       window.__sharedFooter?.setState(total && failed ? 'unavailable' : (total && loaded === total ? 'available' : 'checking'), `${peerText}${moduleText}`);
     }
 
+    function logLibp2p(level, text, state = null) {
+      window.__sharedFooter?.log('libp2p', text, level, state);
+    }
+
     function setLibp2pStatus(text) {
       libp2pPeerId = text;
       recordTelemetry('libp2p', text, true);
-      window.__sharedFooter?.log('libp2p', text);
+      logLibp2p('info', text);
       updateLibp2pFooter();
       render();
     }
@@ -510,6 +514,7 @@
     async function initLibp2pNode() {
       try {
         const bootstrapPeers = loadBootstrapPeers();
+        logLibp2p('info', `bootstrapping with ${bootstrapPeers.length} peer${bootstrapPeers.length === 1 ? '' : 's'}`);
         const node = await createLibp2p({
           transports: [
             webSockets(),
@@ -543,15 +548,22 @@
         window.__libp2pNode = node;
         const describePeerEvent = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || 'peer';
         node.addEventListener('peer:connect', (event) => {
+          logLibp2p('info', `peer connected: ${describePeerEvent(event)}`);
           recordTelemetry('peer-connect', describePeerEvent(event), true);
           updateLibp2pFooter();
         });
         node.addEventListener('peer:disconnect', (event) => {
+          logLibp2p('debug', `peer disconnected: ${describePeerEvent(event)}`);
           recordTelemetry('peer-disconnect', describePeerEvent(event), true);
           updateLibp2pFooter();
         });
+        node.addEventListener('peer:discovery', (event) => {
+          const peer = describePeerEvent(event);
+          logLibp2p('debug', `peer discovered: ${peer}`);
+          recordTelemetry('peer-discovery', peer, true);
+        });
         setLibp2pStatus(node.peerId.toString());
-        console.log('Peer ID:', node.peerId.toString());
+        logLibp2p('info', `node started: ${node.peerId.toString()}`);
         distributedArchive = await createReplicatedArchive({
           namespace: CACHE_KEY,
           topic: 'krackpot-rs/demo-state/v1',
@@ -560,13 +572,15 @@
           applySnapshot: (payload) => {
             if (applyArchivePayload(payload, { remote: true })) {
               setStatus('Restored distributed demo state.', true);
+              logLibp2p('info', 'restored distributed demo state');
             }
           },
-          onStatus: (message, ok) => window.__sharedFooter?.log('archive', message, ok ? 'trace' : 'warn'),
+          onStatus: (message, ok) => logLibp2p(ok ? 'trace' : 'warn', `archive: ${message}`),
         });
         await distributedArchive.start();
       } catch (e) {
         setLibp2pStatus('');
+        logLibp2p('warn', `bootstrap failed: ${e.message}`, 'unavailable');
         console.warn('libp2p bootstrap failed:', e);
       }
     }
