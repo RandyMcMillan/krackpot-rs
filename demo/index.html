@@ -678,6 +678,7 @@
       try {
         const payload = buildArchivePayload();
         logDemo('trace', `persist cache records=${payload.events.length} participants=${payload.participants.length}`, 'available');
+        logDemo('debug', `persist cache telemetry=${payload.telemetryLog.length} relays=${payload.broadcastRelays.length}`, 'available');
         window.localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
         void distributedArchive?.syncSnapshot?.();
       } catch {
@@ -690,9 +691,14 @@
     function restoreCache() {
       try {
         const raw = window.localStorage.getItem(CACHE_KEY);
-        if (!raw) return false;
+        if (!raw) {
+          logDemo('trace', 'restore cache miss', 'checking');
+          return false;
+        }
         logDemo('info', 'restore cache hit', 'checking');
-        return applyArchivePayload(JSON.parse(raw));
+        const restored = applyArchivePayload(JSON.parse(raw));
+        logDemo('debug', `restore cache applied=${restored}`, restored ? 'available' : 'unavailable');
+        return restored;
       } catch {
         logDemo('warn', 'restore cache failed', 'unavailable');
         return false;
@@ -702,6 +708,7 @@
     function registerParticipant(participant) {
       if (!participant?.pk) return;
       logDemo('debug', `register participant ${participant.pk}`, 'available');
+      logDemo('trace', `register participant name=${participant.name || 'n/a'} quorum=${participant.quorumId || 'n/a'}`, 'available');
       const existing = discoveredParticipants.get(participant.pk) || {};
       discoveredParticipants.set(participant.pk, {
         ...existing,
@@ -746,6 +753,7 @@
       const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(pubkey);
       const alternateSource = profile.alternate_source || njumpProfileUrlForPubkey(pubkey);
       const eventsForProfile = profileEvents(pubkey);
+      logDemo('debug', `profile modal events=${eventsForProfile.length}`, eventsForProfile.length ? 'available' : 'checking');
       profileModalAvatarEl.src = picture;
       profileModalAvatarEl.alt = `${name} avatar`;
       profileModalTitleEl.textContent = name;
@@ -785,7 +793,14 @@
 
     function addBroadcastRelay(url) {
       const normalized = normalizeRelayUrl(url);
-      if (!normalized || broadcastRelays.has(normalized)) return false;
+      if (!normalized) {
+        logDemo('debug', `skip broadcast relay ${url}`, 'checking');
+        return false;
+      }
+      if (broadcastRelays.has(normalized)) {
+        logDemo('trace', `duplicate broadcast relay ${normalized}`, 'available');
+        return false;
+      }
       logDemo('info', `add broadcast relay ${normalized}`, 'available');
       broadcastRelays.add(normalized);
       watchRelayMetadata(normalized);
@@ -817,6 +832,7 @@
     function discoverFromEvent(event) {
       logDemo('trace', `discover event kind=${event?.kind} id=${event?.id || 'n/a'}`, 'checking');
       if (event.kind === 10002) {
+        logDemo('debug', `relay metadata tags=${event.tags.length}`, 'checking');
         for (const tag of event.tags) {
           if (tag[0] === 'r' && tag[1]) addBroadcastRelay(tag[1]);
         }
@@ -826,6 +842,7 @@
       if (event.kind === 0) {
         try {
           const metadata = JSON.parse(event.content || '{}');
+          logDemo('debug', `metadata event parsed ${event.pubkey}`, 'available');
           const profile = createParticipantProfile({
             name: metadata.name || event.pubkey.slice(0, 8),
             displayName: metadata.display_name || metadata.displayName || metadata.name || event.pubkey.slice(0, 8),
@@ -853,6 +870,7 @@
           }
           render();
         } catch {
+          logDemo('warn', `metadata parse failed ${event.pubkey}`, 'unavailable');
           // Ignore malformed metadata.
         }
         return;
@@ -861,8 +879,10 @@
       if (event.kind === 3) {
         try {
           const legacy = JSON.parse(event.content || '{}');
+          logDemo('debug', `legacy relay list parsed ${event.pubkey}`, 'available');
           for (const relay of collectRelayUrls(legacy)) addBroadcastRelay(relay);
         } catch {
+          logDemo('warn', `legacy relay parse failed ${event.pubkey}`, 'unavailable');
           // Ignore malformed legacy relay lists.
         }
       }
@@ -968,6 +988,7 @@
     async function resetDag() {
       logDemo('info', 'reset dag', 'checking');
       await initParticipants();
+      logDemo('debug', `reset dag participants=${participants.length}`, 'available');
       dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
       events.clear();
       njumpAvailability.clear();
@@ -1067,6 +1088,7 @@
         logDemo('debug', `duplicate event ${event.id}`, 'available');
         throw new Error('Duplicate event');
       }
+      logDemo('trace', `insert event status=${result.type} parents=${event.tags.filter((t) => t[0] === 'e').length}`, 'available');
       probeNjump(event.id);
       events.set(event.id, {
         id: event.id,
@@ -1083,6 +1105,7 @@
     // Step 22: serialize relay publishing so the demo stays predictable.
     function queueBroadcast(eventsToPublish, successLabel) {
       logDemo('trace', `queue broadcast ${successLabel} count=${eventsToPublish.length}`, 'checking');
+      logDemo('debug', `queue broadcast ids=${eventsToPublish.map((event) => event.id).join(',')}`, 'checking');
       return new Promise((resolve) => {
         broadcastQueue.push({ eventsToPublish, successLabel, resolve });
         if (!broadcastQueueRunning) {
@@ -1139,17 +1162,20 @@
 
     async function publishEvent(event) {
       logDemo('trace', `publish event ${event.id}`, 'checking');
+      logDemo('debug', `publish event kind=${event.kind} content=${event.content.length}`, 'checking');
       return queueBroadcast([event], `Event ${event.kind}`);
     }
 
     async function publishEvents(eventsToPublish, successLabel) {
       logDemo('trace', `publish events ${successLabel} count=${eventsToPublish.length}`, 'checking');
+      logDemo('debug', `publish events ids=${eventsToPublish.map((event) => event.id).join(',')}`, 'checking');
       return queueBroadcast(eventsToPublish, successLabel);
     }
 
     function createAckRoundEvents() {
       logDemo('debug', 'create ack round events', 'checking');
       const tips = currentTips();
+      logDemo('trace', `ack round tips=${tips.length}`, 'available');
       const acks = [];
       for (const author of participants) {
         const event = buildEvent(author, 21000, '', tips);
@@ -1164,6 +1190,7 @@
       const seeded = [];
       for (const author of participants) {
         const event = buildEvent(author, 21000, 'genesis', []);
+        logDemo('trace', `genesis event author=${author.pk} id=${event.id}`, 'available');
         insertEvent(event);
         seeded.push(event);
       }
@@ -1248,6 +1275,7 @@
       const seeded = createGenesisEvents();
       const participantPubkeys = participants.map((participant) => participant.pk);
       const quorumEvent = buildQuorumGroupEvent(participants[participants.length - 1], participantPubkeys);
+      logDemo('debug', `publish profiles participants=${participantPubkeys.length}`, 'checking');
       insertEvent(quorumEvent);
       render();
       void publishEvents(seeded, 'Genesis quorum');
@@ -1278,6 +1306,7 @@
       const threshold = Math.floor(participants.length / 2);
       const relayList = [...RELAYS].sort();
       const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
+      logDemo('debug', `render canonical=${canonical.size} tips=${tips.length} threshold=${threshold}`, 'available');
       profileStripEl.innerHTML = quorumMembers.map((p) => {
         const profile = p.profile || {};
         const name = profile.name || p.name;
@@ -1373,6 +1402,7 @@
       }).join('');
 
       setStatus('DAG updated.', true);
+      logDemo('info', `render complete events=${list.length} canonical=${canonical.size}`, 'available');
       scheduleCachePersist();
     }
 
