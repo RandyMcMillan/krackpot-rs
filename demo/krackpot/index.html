@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#db3b26" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="../shared/favicon.ico" />
+  <link rel="stylesheet" href="../shared/page.css" />
+  <title>Krackpot</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --fg: #e2e8f0;
+      --muted: #94a3b8;
+      --panel: #111827;
+      --surface: #0b1220;
+      --surface-strong: #020617;
+      --border: #334155;
+      --accent: #fb923c;
+      --button-bg: #c2410c;
+      --button-hover: #ea580c;
+      --button-fg: #fff7ed;
+      --status-bg: #1f2937;
+      --status-checking: #f59e0b;
+      --status-available: #22c55e;
+      --status-unavailable: #ef4444;
+      --shadow: rgba(0,0,0,.45);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --fg: #0f172a;
+        --muted: #475569;
+        --panel: #ffffff;
+        --surface: #f1f5f9;
+        --surface-strong: #e2e8f0;
+        --border: #cbd5e1;
+        --accent: #ea580c;
+        --button-bg: #f97316;
+        --button-hover: #ea580c;
+        --button-fg: #ffffff;
+        --status-bg: #e2e8f0;
+        --status-checking: #d97706;
+        --status-available: #15803d;
+        --status-unavailable: #dc2626;
+        --shadow: rgba(15,23,42,.12);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+    .page-content { max-width: 1200px; margin: 0 auto; padding: 1rem 1.25rem 1.5rem; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px var(--shadow);
+    }
+    .hero { padding: 16px; margin-bottom: 14px; }
+    .panel { padding: 14px; margin-bottom: 14px; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.25fr); gap: 14px; align-items: start; }
+    .stack { display: grid; gap: 14px; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .space-between { justify-content: space-between; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--status-bg); }
+    .status { display: inline-flex; align-items: center; gap: 6px; padding: 8px 10px; border-radius: 6px; background: var(--status-bg); }
+    .status-dot { width: 8px; height: 8px; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 2px var(--surface); }
+    .status-idle { color: var(--muted); }
+    .status-checking { color: var(--status-checking); }
+    .status-available { color: var(--status-available); }
+    .status-unavailable { color: var(--status-unavailable); }
+    .button, button, input {
+      font: inherit;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .button, button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: var(--button-bg);
+      color: var(--button-fg);
+      padding: 8px 12px;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .button:hover, button:hover { background: var(--button-hover); }
+    input, select {
+      background: var(--surface);
+      color: var(--fg);
+      padding: 8px 10px;
+    }
+    input[readonly] { opacity: .9; }
+    .field-label { display:block; margin-bottom: 6px; font-weight: 700; letter-spacing: .02em; }
+    .field-help { margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    .input-wrap { display:flex; }
+    .input-wrap input { width: 100%; }
+    .metric-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+    .metric { padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+    .metric .label { display: block; color: var(--muted); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 4px; }
+    .metric .val { font-size: 18px; font-weight: 700; }
+    .metric.accent { border-color: var(--accent); }
+    .gpu-card { display: grid; grid-template-columns: 150px 1fr; gap: 14px; align-items: center; }
+    .gpu-sad { width: 150px; max-width: 100%; }
+    #gpu-status[hidden] { display: none; }
+    #tests-progress { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    #tests-progress progress { width: min(100%, 360px); }
+    #tests table { width: 100%; border-collapse: collapse; }
+    #tests th, #tests td { text-align: left; border-top: 1px solid var(--border); padding: 8px 6px; vertical-align: top; }
+    #tests tbody tr:first-child td { border-top: 0; }
+    #result-banner {
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      white-space: pre-wrap;
+    }
+    #result-banner.fail { border-color: var(--status-unavailable); }
+    #tab-pause-notice, #install-cta { border: 1px solid var(--border); border-radius: 8px; padding: 12px; background: var(--surface); }
+    .install-actions, .share-url-row { display:flex; gap:10px; flex-wrap:wrap; }
+    .share-url-row input { flex: 1 1 360px; min-width: 220px; }
+    .nav-links { display:flex; gap: .5rem; list-style:none; margin:0; padding:0; flex-wrap:wrap; }
+    .nav-links a { display:inline-flex; align-items:center; justify-content:center; padding:8px 12px; border:1px solid var(--border); border-radius:999px; background:rgba(255,255,255,.02); color:var(--fg); text-decoration:none; white-space:nowrap; }
+    .nav-link.current { color: var(--button-fg); font-weight: 600; }
+    .sticky-header { position: sticky; top: 0; width: 100%; z-index: 1000; background: var(--surface-strong); color: var(--fg); border-bottom: 1px solid var(--border); box-shadow: 0 2px 10px var(--shadow); }
+    .header-container { display:flex; justify-content:space-between; align-items:center; max-width:1200px; margin:0 auto; padding:.9rem 1.25rem; gap:1rem; }
+    .header-brand > a { font-size:1.45rem; font-weight:800; color:var(--accent); text-decoration:none; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+    .brand-icon { width:24px; height:24px; }
+    .header-subtitle { margin:0; font-size:12px; color:var(--muted); }
+    .header-nav { display:flex; justify-content:space-between; align-items:center; gap:1rem; width:100%; min-width:0; }
+    .topline { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    @media (max-width: 920px) {
+      .layout { grid-template-columns: 1fr; }
+      .gpu-card { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .page-content { padding: 1rem; }
+      .metric-grid { grid-template-columns: 1fr; }
+      button, input, select { width: 100%; }
+      .share-url-row input, .share-url-row button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header id="sharedHeader"></header>
+
+  <main class="page-content" id="main">
+    <section class="hero">
+      <div class="topline">
+        <strong style="color:var(--accent); font-size:1.15rem;">Krackpot</strong>
+        <span class="pill mono">Puzzle 71</span>
+        <span class="muted small">Local source build</span>
+      </div>
+      <div class="muted" style="margin-top:6px;">The puzzle app runs from the mirrored `src/` tree in this repo.</div>
+    </section>
+
+    <section class="panel">
+      <div class="row space-between">
+        <div class="status status-idle" id="build-version" title="Starting..."><span class="status-dot"></span><span>Starting…</span></div>
+      </div>
+    </section>
+
+    <div class="layout">
+      <section class="stack">
+        <section class="panel">
+          <div id="gpu-status" hidden aria-live="polite">
+            <div class="gpu-card">
+              <svg class="gpu-sad" viewBox="0 0 170 132" width="150" role="img" aria-label="A sad puzzle piece with a piece missing">
+                <g class="gpu-sad-lost">
+                  <circle cx="146" cy="26" r="11" fill="var(--accent)"/>
+                  <path d="M112 40 q10 -9 21 -12" fill="none" stroke="var(--border)" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 7"/>
+                </g>
+                <rect x="26" y="44" width="86" height="66" rx="15" fill="var(--muted)"/>
+                <circle cx="69" cy="44" r="16" fill="var(--muted)"/>
+                <circle cx="112" cy="72" r="14" fill="var(--bg)"/>
+                <path d="M48 66 l14 5" fill="none" stroke="var(--bg)" stroke-width="4" stroke-linecap="round"/>
+                <path d="M92 66 l-14 5" fill="none" stroke="var(--bg)" stroke-width="4" stroke-linecap="round"/>
+                <circle cx="56" cy="80" r="4.2" fill="var(--bg)"/>
+                <circle cx="84" cy="80" r="4.2" fill="var(--bg)"/>
+                <path d="M54 100 q15 -13 30 0" fill="none" stroke="var(--bg)" stroke-width="4.5" stroke-linecap="round"/>
+              </svg>
+              <div>
+                <h2 id="gpu-status-title" style="margin:0 0 8px;">Your browser can't reach WebGPU</h2>
+                <p id="gpu-status-lede" class="muted" style="margin:0 0 8px;">The search runs on your GPU through WebGPU, and this browser or device can't get to it right now.</p>
+                <div id="gpu-info" class="small"></div>
+                <p id="gpu-status-help" class="muted" style="margin:8px 0 0;">Chrome or Edge on a desktop give the smoothest run.</p>
+              </div>
+            </div>
+          </div>
+
+          <label class="field-label" for="user-payout-address">YOUR PAYOUT ADDRESS</label>
+          <div class="input-wrap">
+            <input id="user-payout-address" type="text" value="bc1qq5y98nxyscu6x74z30ym44wwyz4usu95ryende" placeholder="bc1q… / 1… / 3…" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" />
+          </div>
+          <p id="payout-help" class="field-help">Where your 6 BTC lands if you win.</p>
+        </section>
+
+        <section class="panel" id="disclosure">
+          <h2 style="margin-top:0;">Prize split notice</h2>
+          <div class="row" style="justify-content:space-between;"><span>You get</span><strong>exactly 6 BTC</strong></div>
+          <div class="row" style="justify-content:space-between;"><span>Developer gets</span><strong>the remainder</strong></div>
+          <p class="small muted">On a hit, the signed transaction is built locally and submitted through a private channel.</p>
+        </section>
+
+        <section class="panel">
+          <div class="row">
+            <button id="start-search" type="button" aria-describedby="start-hint" disabled>Start cracking</button>
+            <button id="stop-search" type="button" disabled>Stop</button>
+          </div>
+          <div id="tests-progress" hidden style="margin-top:12px;">
+            <progress id="tests-progress-bar" max="1" value="0" aria-label="Capability check progress"></progress>
+            <span id="tests-progress-label" aria-live="polite">Starting…</span>
+            <button id="cancel-tests" type="button" hidden>Cancel</button>
+          </div>
+          <p id="start-hint" class="small muted" style="margin:12px 0 0;">Enabled once the one-time capability check passes.</p>
+          <section id="tests" hidden style="margin-top:12px;">
+            <h2 id="tests-heading">Checking capability of your processor…</h2>
+            <p id="tests-blurb" hidden>Self-test of the WGSL math, hashing, and endianness on this GPU and driver.</p>
+            <table id="test-results" hidden>
+              <thead><tr><th>Test</th><th>Expected</th><th>Got</th><th>Status</th></tr></thead>
+              <tbody></tbody>
+            </table>
+            <button id="run-tests" type="button" hidden>Run the check again</button>
+            <a id="recheck-capability" href="#" class="button" style="margin-top:10px; display:inline-flex;">Re-check capability</a>
+          </section>
+        </section>
+      </section>
+
+      <section class="stack">
+        <section class="panel">
+          <h2 style="margin-top:0;">Live telemetry</h2>
+          <div class="metric-grid" id="telemetry">
+            <div class="metric accent"><span class="label">KEYS / SEC</span><span class="val" id="m-rate">—</span></div>
+            <div class="metric"><span class="label">TOTAL CHECKED</span><span class="val" id="m-total">0</span></div>
+            <div class="metric"><span class="label">RANGE ETA (MEDIAN)</span><span class="val" id="m-eta">—</span></div>
+            <div class="metric"><span class="label">DISPATCH SIZE</span><span class="val" id="m-dispatch">—</span></div>
+            <div class="metric"><span class="label">CURRENT RANGE</span><span class="val small" id="m-range">—</span></div>
+            <div class="metric"><span class="label">GPU / BROWSER</span><span class="val small" id="m-gpu">—</span></div>
+          </div>
+        </section>
+
+        <div id="tab-pause-notice" role="status" aria-live="polite" hidden>
+          <strong>While you were away</strong>
+          <p id="tab-pause-text" class="small muted">Running again. The search paused while this tab was in the background. Nothing was lost.</p>
+          <button type="button" id="tab-pause-dismiss">Don't show again</button>
+        </div>
+
+        <div id="result-banner" role="alert" aria-live="assertive" aria-atomic="true" hidden></div>
+
+        <div id="install-cta" hidden>
+          <p class="small">Add Krackpot to your home screen so it launches like an app.</p>
+          <div class="install-actions">
+            <button id="install-app" type="button">Add to home screen</button>
+            <button id="install-dismiss" type="button">Not now</button>
+          </div>
+        </div>
+
+        <section class="panel">
+          <h2 style="margin-top:0;">Share</h2>
+          <label class="small muted" style="display:block; margin-bottom:8px;">
+            <input id="share-autostart" type="checkbox" />
+            Auto-start the search when someone opens this link
+          </label>
+          <div class="share-url-row">
+            <input id="share-url" type="text" readonly aria-label="Your shareable link" />
+            <button id="copy-share-url" type="button">Copy link</button>
+            <button id="share-link" type="button" hidden>Share</button>
+          </div>
+          <p id="share-feedback" role="status" aria-live="polite" class="small muted"></p>
+        </section>
+
+        <section class="panel">
+          <h2 style="margin-top:0;">Config</h2>
+          <div class="row space-between"><span>Target</span><code id="cfg-target" class="mono">—</code></div>
+          <div class="row space-between"><span>Range</span><code id="cfg-range" class="mono">—</code></div>
+        </section>
+      </section>
+    </div>
+  </main>
+
+  <script type="module">
+    import { createSharedHeader } from '../shared/page-header.mjs';
+    import { resolveHref } from '../shared/page-path.js';
+
+    createSharedHeader(document.getElementById('sharedHeader'), {
+      title: 'krackpot-rs',
+      logoHref: resolveHref('../', window.location.href),
+      iconHref: resolveHref('../shared/favicon.ico', window.location.href),
+      subtitleHtml: '',
+      navItems: [
+        { label: 'Demo', href: resolveHref('../', window.location.href) },
+        { label: 'Git viewer', href: resolveHref('../git/', window.location.href) },
+        { label: 'Krackpot', current: true },
+        { label: 'Source', href: resolveHref('./source/', window.location.href), target: '_blank' },
+      ],
+    });
+  </script>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

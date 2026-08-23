@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#db3b26" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="../../shared/favicon.ico" />
+  <link rel="stylesheet" href="../../shared/page.css" />
+  <title>Krackpot Source</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #0f172a;
+      --fg: #e2e8f0;
+      --muted: #94a3b8;
+      --panel: #111827;
+      --surface: #0b1220;
+      --surface-strong: #020617;
+      --border: #334155;
+      --accent: #fb923c;
+      --button-bg: #c2410c;
+      --button-hover: #ea580c;
+      --button-fg: #fff7ed;
+      --shadow: rgba(0,0,0,.45);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg: #f8fafc;
+        --fg: #0f172a;
+        --muted: #475569;
+        --panel: #ffffff;
+        --surface: #f1f5f9;
+        --surface-strong: #e2e8f0;
+        --border: #cbd5e1;
+        --accent: #ea580c;
+        --button-bg: #f97316;
+        --button-hover: #ea580c;
+        --button-fg: #ffffff;
+        --shadow: rgba(15,23,42,.12);
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font-family: system-ui, -apple-system, sans-serif; line-height: 1.5; }
+    .page-content { max-width: 1400px; margin: 0 auto; padding: 1rem 1.25rem 1.5rem; }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 2px 10px var(--shadow);
+    }
+    .hero { padding: 16px; margin-bottom: 14px; }
+    .panel { padding: 14px; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .space-between { justify-content:space-between; }
+    .muted { color: var(--muted); }
+    .small { font-size: 12px; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background: var(--surface); }
+    .button, button, input {
+      font: inherit;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .button, button {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      background:var(--button-bg);
+      color:var(--button-fg);
+      padding:8px 12px;
+      text-decoration:none;
+      cursor:pointer;
+    }
+    .button:hover, button:hover { background: var(--button-hover); }
+    input {
+      background: var(--surface);
+      color: var(--fg);
+      padding: 8px 10px;
+      width: 100%;
+    }
+    .source-layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+      gap: 14px;
+    }
+    .source-list {
+      display: grid;
+      gap: 8px;
+      max-height: calc(100vh - 280px);
+      overflow: auto;
+      padding-right: 4px;
+    }
+    .source-item {
+      text-align: left;
+      justify-content: flex-start;
+      width: 100%;
+      background: var(--surface);
+      color: var(--fg);
+      border-color: var(--border);
+      padding: 8px 10px;
+    }
+    .source-item.active {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 1px var(--accent);
+    }
+    .source-view {
+      display: grid;
+      gap: 10px;
+    }
+    .source-meta {
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .source-code {
+      margin: 0;
+      padding: 14px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: auto;
+      white-space: pre;
+      min-height: 60vh;
+      max-height: calc(100vh - 300px);
+      line-height: 1.45;
+      font-size: 12px;
+    }
+    .nav-links { display:flex; gap:.5rem; list-style:none; margin:0; padding:0; flex-wrap:wrap; }
+    .nav-links a { display:inline-flex; align-items:center; justify-content:center; padding:8px 12px; border:1px solid var(--border); border-radius:999px; background:rgba(255,255,255,.02); color:var(--fg); text-decoration:none; white-space:nowrap; }
+    .nav-link.current { color:var(--button-fg); font-weight:600; }
+    .sticky-header { position:sticky; top:0; width:100%; z-index:1000; background:var(--surface-strong); color:var(--fg); border-bottom:1px solid var(--border); box-shadow:0 2px 10px var(--shadow); }
+    .header-container { display:flex; justify-content:space-between; align-items:center; max-width:1200px; margin:0 auto; padding:.9rem 1.25rem; gap:1rem; }
+    .header-brand > a { font-size:1.45rem; font-weight:800; color:var(--accent); text-decoration:none; display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+    .brand-icon { width:24px; height:24px; }
+    .header-subtitle { margin:0; font-size:12px; color:var(--muted); }
+    .header-nav { display:flex; justify-content:space-between; align-items:center; gap:1rem; width:100%; min-width:0; }
+    @media (max-width: 900px) {
+      .page-content { padding: 1rem; }
+      .source-layout { grid-template-columns: 1fr; }
+      .source-list { max-height: 280px; }
+      .source-code { max-height: none; }
+    }
+  </style>
+</head>
+<body>
+  <header id="sharedHeader"></header>
+
+  <main class="page-content">
+    <section class="hero">
+      <div class="row space-between">
+        <div>
+          <div style="font-size:1.25rem; font-weight:700; color:var(--accent);">Krackpot Source</div>
+          <div class="small muted">Browse the mirrored source tree that powers the local tab.</div>
+        </div>
+        <div class="row">
+          <span class="pill mono">27 files</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="row" style="margin-bottom:12px;">
+        <input id="filter" type="search" placeholder="Filter files" aria-label="Filter files" />
+      </div>
+      <div class="source-layout">
+        <aside class="panel" style="margin:0;">
+          <div class="source-list" id="fileList"></div>
+        </aside>
+        <section class="panel source-view" style="margin:0;">
+          <div class="source-meta">
+            <div>
+              <div class="small muted">File</div>
+              <div id="fileName" class="mono" style="font-weight:700;">main.js</div>
+            </div>
+            <div class="row">
+              <button id="copyPath" type="button">Copy path</button>
+            </div>
+          </div>
+          <div id="fileInfo" class="small muted"></div>
+          <pre id="code" class="source-code" aria-live="polite"></pre>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script type="module">
+    import { createSharedHeader } from '../../shared/page-header.mjs';
+    import { resolveHref } from '../../shared/page-path.js';
+
+    createSharedHeader(document.getElementById('sharedHeader'), {
+      title: 'krackpot-rs',
+      logoHref: resolveHref('../../', window.location.href),
+      iconHref: resolveHref('../../shared/favicon.ico', window.location.href),
+      subtitleHtml: '',
+      navItems: [
+        { label: 'Demo', href: resolveHref('../../', window.location.href) },
+        { label: 'Git viewer', href: resolveHref('../../git/', window.location.href) },
+        { label: 'Krackpot', href: resolveHref('../', window.location.href) },
+        { label: 'Source', current: true },
+      ],
+    });
+  </script>
+
+  <script type="module">
+    const FILES = [
+      'main.js',
+      'webgpu.js',
+      'tests.js',
+      'coordinator.js',
+      'claim-queue.js',
+      'claim-orchestrator.js',
+      'claim-relay.js',
+      'shield.js',
+      'slipstream.js',
+      'config.js',
+      'share.js',
+      'puzzle-utxos.js',
+      'prize-claim.js',
+      'reference/address.js',
+      'reference/base58.js',
+      'reference/ripemd160.js',
+      'reference/secp.js',
+      'shaders/bigint.js',
+      'shaders/ripemd160.js',
+      'shaders/search.js',
+      'shaders/secp256k1.js',
+      'shaders/sha256.js',
+      'shaders/test_bigint.js',
+      'shaders/test_pipeline.js',
+      'shaders/test_ripemd160.js',
+      'shaders/test_secp256k1.js',
+      'shaders/test_sha256.js',
+    ];
+
+    const SOURCE_BASE = new URL('../src/', window.location.href);
+    const fileList = document.getElementById('fileList');
+    const filter = document.getElementById('filter');
+    const code = document.getElementById('code');
+    const fileName = document.getElementById('fileName');
+    const fileInfo = document.getElementById('fileInfo');
+    const copyPath = document.getElementById('copyPath');
+    const fileMap = new Map(FILES.map((file) => [file, file]));
+
+    const params = new URLSearchParams(window.location.search);
+    let selected = fileMap.has(params.get('file')) ? params.get('file') : 'main.js';
+
+    const fileUrl = (file) => new URL(file, SOURCE_BASE).href;
+    const prettySize = (n) => n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`;
+
+    function updateUrl() {
+      const next = new URL(window.location.href);
+      next.searchParams.set('file', selected);
+      window.history.replaceState({}, '', next);
+    }
+
+    function renderList() {
+      const query = filter.value.trim().toLowerCase();
+      fileList.innerHTML = '';
+      for (const file of FILES.filter((entry) => entry.toLowerCase().includes(query))) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `source-item${file === selected ? ' active' : ''}`;
+        button.textContent = file;
+        button.addEventListener('click', () => loadFile(file));
+        fileList.appendChild(button);
+      }
+    }
+
+    async function loadFile(file) {
+      selected = file;
+      updateUrl();
+      renderList();
+      fileName.textContent = file;
+      fileInfo.textContent = 'Loading…';
+      code.textContent = '';
+      const response = await fetch(fileUrl(file), { cache: 'no-cache' });
+      if (!response.ok) {
+        fileInfo.textContent = `Failed to load ${file} (${response.status})`;
+        return;
+      }
+      const text = await response.text();
+      code.textContent = text;
+      fileInfo.textContent = `${prettySize(new TextEncoder().encode(text).length)} · ${text.split('\n').length} lines`;
+      copyPath.dataset.path = file;
+      renderList();
+    }
+
+    filter.addEventListener('input', renderList);
+    copyPath.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(copyPath.dataset.path || selected);
+      } catch {
+        const path = copyPath.dataset.path || selected;
+        copyPath.textContent = path;
+        window.setTimeout(() => { copyPath.textContent = 'Copy path'; }, 1200);
+      }
+    });
+
+    renderList();
+    await loadFile(selected);
+  </script>
+</body>
+</html>

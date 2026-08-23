@@ -1,0 +1,10 @@
+[build]
+target-dir = "target"
+
+[alias]
+# Native-only helpers; JS test aggregation stays in Make/just because Cargo aliases cannot run Node.
+test-native = "test --features native"
+build-native = "build --features native"
+build-relay = "build --release --bin relay --bin federation --features relay"
+build-server = "build --bin nostr-dag-server --features native"
+server = "run --bin nostr-dag-server --features native"

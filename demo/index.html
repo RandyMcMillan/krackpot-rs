@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="./shared/favicon.ico" />
+<link rel="stylesheet" href="../shared/page.css" />
+<title>krackpot-rs Demo</title>
+<style>
+  /* Step 0: map the UI to system light/dark tokens. */
+  :root {
+    color-scheme: light dark;
+    --bg: #0f172a;
+    --fg: #e2e8f0;
+    --muted: #94a3b8;
+    --panel: #111827;
+    --surface: #0b1220;
+    --surface-strong: #020617;
+    --border: #334155;
+    --border-strong: #fb923c;
+    --input-bg: #020617;
+    --input-fg: #e2e8f0;
+    --accent: #fb923c;
+    --button-bg: #c2410c;
+    --button-hover: #ea580c;
+    --status-ok: #065f46;
+    --status-err: #7f1d1d;
+    --shadow: rgba(0,0,0,.45);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: #f8fafc;
+      --fg: #0f172a;
+      --muted: #475569;
+      --panel: #ffffff;
+      --surface: #f1f5f9;
+      --surface-strong: #e2e8f0;
+      --border: #cbd5e1;
+      --border-strong: #ea580c;
+      --input-bg: #ffffff;
+      --input-fg: #0f172a;
+      --accent: #ea580c;
+      --button-bg: #f97316;
+      --button-hover: #ea580c;
+      --status-ok: #d1fae5;
+      --status-err: #fee2e2;
+      --shadow: rgba(15,23,42,.12);
+    }
+  }
+  * { box-sizing:border-box; }
+  body { font-family: system-ui, -apple-system, sans-serif; line-height:1.6; margin: 0; padding: 0 0 calc(var(--sticky-footer-space, 88px) + 24px); background:var(--bg); color:var(--fg); }
+  .page-content { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
+  h1 { margin: 0 0 6px; color: var(--accent); }
+  .muted { color:var(--muted); }
+  .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin:14px 0; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+  input, select, button { background:var(--input-bg); color:var(--input-fg); border:1px solid var(--border); border-radius:6px; padding:8px; }
+  button { cursor:pointer; background:var(--button-bg); border-color:var(--border-strong); }
+  button { color:var(--button-fg); }
+  button:hover { background:var(--button-hover); }
+  .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; margin-top:10px; background:var(--status-bg); }
+  .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
+  .status-idle { color: var(--muted); }
+  .status-checking { color: var(--status-checking); }
+  .status-available { color: var(--status-available); }
+  .status-unavailable { color: var(--status-unavailable); }
+  .ok { background:var(--status-ok); }
+  .err { background:var(--status-err); }
+  .grid { display:grid; grid-template-columns: 1fr 2fr; gap:14px; }
+    .chip { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; }
+    .canonical { background:var(--chip-canonical-bg); color:var(--fg); }
+    .pending { background:var(--chip-pending-bg); color:var(--fg); }
+    .njump-link { background:transparent; padding:0; color:var(--success-link); text-decoration:none; }
+    .njump-link:hover { text-decoration:underline; }
+    .event { border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--surface); }
+    .avatar { width: 24px; height: 24px; border-radius: 999px; object-fit: cover; vertical-align: middle; margin-right: 6px; border: 1px solid var(--border); background: var(--surface-strong); }
+    .profile-card { border:1px solid var(--border); border-radius:10px; padding:10px; background:var(--surface); cursor:pointer; min-width:180px; }
+    .profile-card:hover { border-color:var(--accent); }
+    .profile-card .avatar { width: 36px; height: 36px; margin-right: 0; }
+    .profile-strip { display:flex; gap:10px; flex-wrap:wrap; }
+    .modal-backdrop { position:fixed; inset:0; background:rgba(2,6,23,.72); display:none; align-items:center; justify-content:center; padding:20px; z-index:50; }
+    .modal-backdrop.open { display:flex; }
+    .modal { max-width:680px; width:100%; background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; box-shadow:0 10px 40px var(--shadow); }
+    .modal h3 { margin-top:0; }
+    .modal .avatar { width: 56px; height: 56px; margin-right: 12px; }
+    .close-btn { margin-left:auto; }
+    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--surface-strong); border-top:1px solid var(--border); padding:10px 20px; z-index:40; resize:vertical; overflow:hidden; min-height:84px; max-height:70vh; }
+    .sticky-footer-inner { max-width:1100px; margin:0 auto; }
+    .sticky-header { position:sticky; top:0; width:100%; z-index:1000; background:var(--surface-strong); color:var(--fg); border-bottom:1px solid var(--border); box-shadow:0 2px 10px var(--shadow); }
+    .header-container { display:flex; justify-content:space-between; align-items:center; max-width:1200px; margin:0 auto; padding:0.9rem 1.5rem; gap:1rem; }
+    .header-brand { display:flex; align-items:center; gap:10px; min-width:0; flex:0 1 auto; }
+    .header-brand > a { font-size:1.45rem; font-weight:800; color:var(--accent); text-decoration:none; display:inline-flex; align-items:center; gap:8px; line-height:1.1; white-space:nowrap; min-width:0; }
+    .brand-icon { width:24px; height:24px; display:block; flex:0 0 auto; }
+    .logo-text { display:inline-block; min-width:0; }
+    .header-subtitle { margin:0; font-size:12px; line-height:1.3; max-width:56ch; color:var(--muted); }
+    .header-nav { display:flex; align-items:center; justify-content:space-between; gap:1rem; min-width:0; width:100%; }
+    .nav-links { display:flex; gap:.5rem; list-style:none; margin:0; padding:0; flex-wrap:nowrap; justify-content:flex-end; width:max-content; white-space:nowrap; }
+    .nav-links li { flex:0 0 auto; }
+    .nav-links a { display:inline-flex; align-items:center; justify-content:center; padding:8px 12px; border:1px solid var(--border); border-radius:999px; background:rgba(255,255,255,.02); color:var(--fg); text-decoration:none; transition:background-color .2s ease, border-color .2s ease, color .2s ease, transform .2s ease; white-space:nowrap; }
+    .nav-links a:hover { color:var(--fg); border-color:var(--accent); background:rgba(251,146,60,.12); }
+    .nav-link.current { color:var(--button-fg); font-weight:600; }
+    .footer-header { display:flex; align-items:center; gap:10px; }
+    .footer-toggle { display:inline-flex; align-items:center; gap:8px; background:transparent; border:0; color:inherit; padding:0; }
+    .footer-toggle:hover { background:transparent; }
+    .footer-status-wrap { flex:0 0 auto; }
+    .footer-log-wrap { flex:1 1 auto; min-width:0; }
+    .footer-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; }
+    .footer-level-pills { display:inline-flex; align-items:center; margin-left:auto; flex-wrap:wrap; overflow:hidden; border:1px solid var(--border); border-radius:999px; }
+    .footer-pill { border:0; border-right:1px solid var(--border); padding:4px 10px; background:transparent; color:var(--muted); cursor:pointer; border-radius:0; }
+    .footer-pill:last-child { border-right:0; }
+    .footer-pill.active { background:var(--button-bg); color:var(--button-fg); }
+    .footer-chevron { display:inline-block; width:1em; transition:transform .15s ease; }
+    .footer-chevron.open { transform:rotate(90deg); }
+    .footer-log { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); max-height:180px; overflow:auto; }
+    .footer-log-item { display:flex; gap:8px; margin:0 0 6px; }
+    .footer-log-time { flex:0 0 auto; color:var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
+    .small { font-size:12px; }
+    @media (max-width: 1100px) {
+      .page-content { max-width: 100%; }
+      .header-container { padding:0.9rem 1.25rem; }
+      .nav-links { gap:1rem; }
+      .grid { grid-template-columns:1fr 1fr; }
+    }
+    @media (max-width: 900px) {
+      .page-content { margin: 1.25rem auto; padding: 0 1rem; }
+      .grid { grid-template-columns:1fr; }
+      .header-container { padding:0.9rem 1rem; }
+    }
+    @media (max-width: 640px) {
+      .header-container { gap:.75rem; padding:.85rem 1rem; }
+      .nav-links { gap:.4rem; width:max-content; flex-wrap:nowrap; flex-shrink:0; white-space:nowrap; }
+      .panel { padding:12px; }
+      .row { gap:8px; }
+      button, input, select { width:100%; }
+    }
+    </style>
+  </head>
+  <body>
+    <header id="sharedHeader"></header>
+    <main class="page-content">
+
+    <div class="panel">
+    <!-- Step 1: load the app and keep the DAG controls visible up front. -->
+    <div class="row">
+      <button id="resetBtn">Reset DAG</button>
+      <button id="seedBtn">Create Genesis (all participants)</button>
+      <button id="ackRoundBtn">Run Ack Round</button>
+      <span id="status" class="status">Loading WASM...</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <!-- Step 2: surface the quorum roster so profile state is always visible. -->
+    <div id="profileStrip" class="profile-strip"></div>
+  </div>
+
+  <div class="grid">
+    <!-- Step 3: create new events and inspect the current DAG state. -->
+    <form class="panel" id="createForm">
+      <h3>New Event</h3>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Author</label>
+        <select id="author"></select>
+      </div>
+
+      <div id="profileModalBackdrop" class="modal-backdrop" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="profileModalTitle">
+          <div class="row" style="align-items:flex-start;">
+            <img id="profileModalAvatar" class="avatar" src="" alt="" />
+            <div style="flex:1;">
+              <h3 id="profileModalTitle"></h3>
+              <div id="profileModalMeta" class="small muted"></div>
+            </div>
+            <button id="profileModalClose" class="close-btn" type="button">Close</button>
+          </div>
+          <div id="profileModalBody" style="margin-top:12px;"></div>
+        </div>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Kind</label>
+        <select id="kind">
+          <option value="21000" selected>21000 (ack)</option>
+          <option value="0">0 (metadata)</option>
+          <option value="1">1 (text note)</option>
+          <option value="42">42 (message)</option>
+        </select>
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Content</label>
+        <input id="content" placeholder="optional content" style="flex:1;" />
+      </div>
+      <div class="row" style="margin-bottom:8px;">
+        <label>Parents</label>
+        <select id="parentsMode">
+          <option value="tips">Current tips</option>
+          <option value="none">No parents (genesis)</option>
+          <option value="custom">Custom IDs</option>
+        </select>
+      </div>
+      <div class="row">
+        <input id="customParents" class="mono" style="flex:1;" placeholder="comma-separated event IDs" />
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <button id="createBtn" type="submit">Create Event</button>
+      </div>
+    </form>
+
+    <div class="panel">
+      <h3>State</h3>
+      <ul id="stateList" class="small muted" style="margin:8px 0; padding-left:18px;"></ul>
+      <div id="events"></div>
+    </div>
+  </div>
+
+  </main>
+
+  <script type="module">
+    import { createSharedHeader } from './shared/page-header.mjs';
+    import { resolveHref } from './shared/page-path.js';
+
+    createSharedHeader(document.getElementById('sharedHeader'), {
+      title: 'krackpot-rs',
+      logoHref: resolveHref('./', window.location.href),
+      iconHref: resolveHref('./shared/favicon.ico', window.location.href),
+      subtitleHtml: '',
+      navItems: [
+        { label: 'Demo', current: true },
+        { label: 'Git viewer', href: resolveHref('./git/', window.location.href) },
+        { label: 'Krackpot', href: resolveHref('./krackpot/', window.location.href) },
+        { label: 'Source', href: resolveHref('./krackpot/source/', window.location.href), target: '_blank' },
+      ],
+    });
+  </script>
+
+  <script type="module">
+    // Step 4: import the WASM DAG and browser-only Nostr/libp2p helpers.
+    import init, { WasmDag } from './pkg/nostr_dag.js';
+    import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
+    import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
+    import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
+    import { createLibp2p } from 'https://esm.sh/libp2p';
+    import { identify } from 'https://esm.sh/@libp2p/identify';
+    import { webSockets } from 'https://esm.sh/@libp2p/websockets';
+    import { webRTC } from 'https://esm.sh/@libp2p/webrtc';
+    import { noise } from 'https://esm.sh/@chainsafe/libp2p-noise';
+    import { yamux } from 'https://esm.sh/@chainsafe/libp2p-yamux';
+
+    // Step 5: define the relay set and durable browser cache keys.
+    const RELAYS = [
+      'wss://relay.damus.io',
+      'wss://nos.lol',
+      'wss://relay.nostr.band',
+      'wss://relay.primal.net',
+      'wss://nostr.wine',
+    ];
+    const CACHE_KEY = 'krackpot-rs-demo-cache-v1';
+    const SITE_URL = 'https://randymcmillan.github.io/krackpot-rs';
+    const QUORUM_ID = 'krackpot-rs-quorum-5';
+    const PARTICIPANT_NAMES = ['alice', 'bob', 'carol', 'dave', 'eve'];
+    const PARTICIPANT_DISPLAY_NAMES = ['Alice', 'Bob', 'Carol', 'Dave', 'Eve'];
+
+    const FED_COUNT = 5;
+    let dag = null;
+    let participants = [];
+    const discoveredParticipants = new Map();
+    const events = new Map();
+    const njumpAvailability = new Map();
+    const pool = new SimplePool();
+    const broadcastRelays = new Set(RELAYS);
+    const watchedRelays = new Set();
+    const retryTimers = new Map();
+    const broadcastQueue = [];
+    let cachePersistTimer = null;
+    let njumpPollTimer = null;
+    let profilePollTimer = null;
+    let profilePollInFlight = false;
+    let participantPollTimer = null;
+    let participantPollInFlight = false;
+    let broadcastQueueRunning = false;
+    let relayDiscoveryStarted = false;
+    let libp2pPeerId = 'starting...';
+    let libp2pModuleCounts = { loaded: 0, failed: 0, total: 0 };
+
+    // Step 6: bind the DOM nodes used by render() and the action handlers.
+    const statusEl = document.getElementById('status');
+    const authorEl = document.getElementById('author');
+    const kindEl = document.getElementById('kind');
+    const contentEl = document.getElementById('content');
+    const parentsModeEl = document.getElementById('parentsMode');
+    const customParentsEl = document.getElementById('customParents');
+    const createFormEl = document.getElementById('createForm');
+    const stateListEl = document.getElementById('stateList');
+    const profileStripEl = document.getElementById('profileStrip');
+    const profileModalBackdropEl = document.getElementById('profileModalBackdrop');
+    const profileModalAvatarEl = document.getElementById('profileModalAvatar');
+    const profileModalTitleEl = document.getElementById('profileModalTitle');
+    const profileModalMetaEl = document.getElementById('profileModalMeta');
+    const profileModalBodyEl = document.getElementById('profileModalBody');
+    const profileModalCloseEl = document.getElementById('profileModalClose');
+    const resetBtnEl = document.getElementById('resetBtn');
+    const seedBtnEl = document.getElementById('seedBtn');
+    const ackRoundBtnEl = document.getElementById('ackRoundBtn');
+
+    const short = (id) => id ? `${id.slice(0, 10)}…` : '-';
+
+    // Step 7: derive deterministic participant keys from stable names.
+    async function sha256Bytes(value) {
+      const encoded = new TextEncoder().encode(value);
+      const digest = await crypto.subtle.digest('SHA-256', encoded);
+      return new Uint8Array(digest);
+    }
+
+    // Step 8: normalize profile metadata into the shape the UI and relay
+    // events expect.
+    function createParticipantProfile({
+      name,
+      displayName,
+      about,
+      picture,
+      website,
+      alternateSource,
+      profileUrl,
+      quorumId,
+      quorumEventId = quorumId,
+    }) {
+      return {
+        name,
+        display_name: displayName,
+        about,
+        picture,
+        website,
+        profile_url: profileUrl,
+        alternate_source: alternateSource,
+        quorum_id: quorumId,
+        quorum_event_id: quorumEventId,
+      };
+    }
+
+    // Step 9: build public profile/event links used in the detail cards.
+    function njumpUrlForEvent(eventId) {
+      return `https://njump.me/${neventEncode({ id: eventId })}`;
+    }
+
+    function njumpProfileUrlForPubkey(pubkey) {
+      return `https://njump.me/${npubEncode(pubkey)}`;
+    }
+
+    function nostrProfileUrlForPubkey(pubkey) {
+      return `https://nostr.com/${npubEncode(pubkey)}`;
+    }
+
+    function profileUrlsForPubkey(pubkey) {
+      return [nostrProfileUrlForPubkey(pubkey), njumpProfileUrlForPubkey(pubkey)];
+    }
+
+    function pickRandomProfileUrl(pubkey) {
+      const urls = profileUrlsForPubkey(pubkey);
+      return Math.random() < 0.8 ? urls[0] : urls[1];
+    }
+
+    function njumpProbeUrlForEvent(eventId) {
+      return `https://njump.me/image/${neventEncode({ id: eventId })}?v=${Date.now()}`;
+    }
+
+    // Step 10: lazily probe njump so the UI can show optional deep links.
+    function scheduleNjumpPolling() {
+      if (njumpPollTimer) return;
+      njumpPollTimer = window.setInterval(() => {
+        for (const event of events.values()) {
+          if (!njumpAvailability.get(event.id)?.available) {
+            probeNjump(event.id);
+          }
+        }
+        for (const participant of discoveredParticipants.values()) {
+          if (participant.eventId && !njumpAvailability.get(participant.eventId)?.available) {
+            probeNjump(participant.eventId);
+          }
+        }
+      }, 15000);
+    }
+
+    async function warmProfileUrl(url) {
+      try {
+        await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-store', credentials: 'omit' });
+      } catch {
+        // Best-effort only; this is just to spread load across sources.
+      }
+    }
+
+    // Step 11: keep profile sources warm without blocking the main workflow.
+    async function warmParticipantProfiles() {
+      if (profilePollInFlight || participants.length === 0) return;
+      profilePollInFlight = true;
+
+      try {
+        const targets = [
+          ...participants,
+          ...discoveredParticipants.values(),
+        ].filter((participant, index, list) => participant?.pk && list.findIndex((p) => p.pk === participant.pk) === index);
+
+        for (const participant of targets) {
+          await warmProfileUrl(pickRandomProfileUrl(participant.pk));
+          await sleep(250);
+        }
+      } finally {
+        profilePollInFlight = false;
+      }
+    }
+
+    function scheduleParticipantPolling() {
+      if (participantPollTimer) return;
+      participantPollTimer = window.setInterval(() => {
+        void pollQuorumMemberMetadata();
+      }, 10000);
+    }
+
+    function scheduleProfilePolling() {
+      if (profilePollTimer) return;
+      profilePollTimer = window.setInterval(() => {
+        void warmParticipantProfiles();
+      }, 20000);
+    }
+
+    function probeNjump(eventId) {
+      if (njumpAvailability.get(eventId)?.available) return;
+
+      const img = new Image();
+      img.referrerPolicy = 'no-referrer';
+      img.onload = () => {
+        njumpAvailability.set(eventId, { available: true, url: njumpUrlForEvent(eventId) });
+        render();
+      };
+      img.onerror = () => {
+        if (!njumpAvailability.has(eventId)) {
+          njumpAvailability.set(eventId, { available: false, url: njumpUrlForEvent(eventId) });
+          render();
+        }
+      };
+      img.src = njumpProbeUrlForEvent(eventId);
+      scheduleNjumpPolling();
+    }
+
+    // Step 12: centralize status updates so the footer and badges stay in sync.
+    function setStatus(message, ok = true) {
+      statusEl.textContent = message;
+      statusEl.className = `status ${ok ? 'ok' : 'err'}`;
+    }
+
+    function setControlsEnabled(enabled) {
+      resetBtnEl.disabled = !enabled;
+      seedBtnEl.disabled = !enabled;
+      ackRoundBtnEl.disabled = !enabled;
+    }
+
+    function updateLibp2pFooter() {
+      const { loaded, failed, total } = libp2pModuleCounts;
+      const moduleText = total ? `modules ${loaded}/${total}${failed ? ` (${failed} failed)` : ''}` : 'modules loading...';
+      const peerText = libp2pPeerId && libp2pPeerId !== 'starting...' ? `libp2p: ${libp2pPeerId} | ` : 'libp2p: ';
+      window.__sharedFooter?.setState(total && failed ? 'unavailable' : (total && loaded === total ? 'available' : 'checking'), `${peerText}${moduleText}`);
+    }
+
+    function setLibp2pStatus(text) {
+      libp2pPeerId = text;
+      window.__sharedFooter?.log('libp2p', text);
+      updateLibp2pFooter();
+      render();
+    }
+
+    function setLibp2pModuleCounts(counts) {
+      libp2pModuleCounts = counts;
+      updateLibp2pFooter();
+    }
+    window.__setLibp2pModuleCounts = setLibp2pModuleCounts;
+
+    // Step 13: start the optional libp2p node after the page is usable.
+    async function initLibp2pNode() {
+      try {
+        const node = await createLibp2p({
+          transports: [webSockets(), webRTC()],
+          connectionEncrypters: [noise()],
+          streamMuxers: [yamux()],
+          services: { identify: identify() },
+        });
+        await node.start();
+        setLibp2pStatus(node.peerId.toString());
+        console.log('Peer ID:', node.peerId.toString());
+      } catch (e) {
+        setLibp2pStatus('');
+        console.warn('libp2p bootstrap failed:', e);
+      }
+    }
+
+    function scheduleRetry(key, fn, delayMs) {
+      if (retryTimers.has(key)) return;
+      const timer = window.setTimeout(() => {
+        retryTimers.delete(key);
+        fn();
+      }, delayMs);
+      retryTimers.set(key, timer);
+    }
+
+    function sleep(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
+    }
+
+    function scheduleCachePersist() {
+      if (cachePersistTimer) return;
+      cachePersistTimer = window.setTimeout(() => {
+        cachePersistTimer = null;
+        persistCache();
+      }, 750);
+    }
+
+    // Step 14: persist the current demo state to localStorage.
+    function persistCache() {
+      try {
+        const payload = {
+          participants: participants.map((participant) => ({
+            pk: participant.pk,
+            name: participant.name,
+            displayName: participant.displayName,
+            about: participant.about,
+            picture: participant.picture,
+            website: participant.website,
+            quorumId: participant.quorumId,
+            profile: participant.profile || null,
+          })),
+          events: [...events.values()],
+          discoveredParticipants: [...discoveredParticipants.values()],
+          njumpAvailability: [...njumpAvailability.entries()],
+          broadcastRelays: [...broadcastRelays],
+        };
+        window.localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+      } catch {
+        // Cache is best-effort only.
+      }
+    }
+
+    // Step 15: restore the last saved demo state when the page reloads.
+    function restoreCache() {
+      try {
+        const raw = window.localStorage.getItem(CACHE_KEY);
+        if (!raw) return false;
+
+        const payload = JSON.parse(raw);
+        if (Array.isArray(payload.broadcastRelays)) {
+          broadcastRelays.clear();
+          for (const relay of payload.broadcastRelays) {
+            const normalized = normalizeRelayUrl(relay);
+            if (normalized) broadcastRelays.add(normalized);
+          }
+        }
+
+        if (Array.isArray(payload.discoveredParticipants)) {
+          discoveredParticipants.clear();
+          for (const participant of payload.discoveredParticipants) {
+            if (participant?.pk) discoveredParticipants.set(participant.pk, participant);
+          }
+        }
+
+        if (Array.isArray(payload.njumpAvailability)) {
+          njumpAvailability.clear();
+          for (const [id, value] of payload.njumpAvailability) {
+            if (id) njumpAvailability.set(id, value);
+          }
+        }
+
+        if (Array.isArray(payload.events)) {
+          events.clear();
+          for (const event of payload.events.sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id))) {
+            if (!event?.id || !dag) continue;
+            const restoredEvent = {
+              id: event.id,
+              kind: event.kind,
+              pubkey: event.author,
+              created_at: event.created_at,
+              tags: (event.parents || []).map((parentId) => ['e', parentId]),
+              content: event.content,
+            };
+            dag.insert(JSON.stringify(restoredEvent));
+            events.set(event.id, event);
+          }
+        }
+
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function registerParticipant(participant) {
+      if (!participant?.pk) return;
+      const existing = discoveredParticipants.get(participant.pk) || {};
+      discoveredParticipants.set(participant.pk, {
+        ...existing,
+        ...participant,
+        profile: participant.profile || existing.profile || null,
+        pk: participant.pk,
+      });
+      scheduleCachePersist();
+    }
+
+    function participantLabel(pubkey) {
+      return discoveredParticipants.get(pubkey)?.name
+        || participants.find((p) => p.pk === pubkey)?.name
+        || pubkey.slice(0, 8);
+    }
+
+    function participantProfile(pubkey) {
+      return discoveredParticipants.get(pubkey)?.profile
+        || participants.find((p) => p.pk === pubkey)?.profile
+        || null;
+    }
+
+    function profileLabel(pubkey) {
+      return participantProfile(pubkey)?.name
+        || participantLabel(pubkey);
+    }
+
+    function profileEvents(pubkey) {
+      return [...events.values()]
+        .filter((event) => event.author === pubkey)
+        .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+    }
+
+    function openProfileModal(pubkey) {
+      const participant = participants.find((p) => p.pk === pubkey) || {};
+      const profile = participantProfile(pubkey) || participant.profile || {};
+      const name = profile.name || participant.name || pubkey.slice(0, 8);
+      const picture = profile.picture || participant.picture || '';
+      const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(pubkey);
+      const alternateSource = profile.alternate_source || njumpProfileUrlForPubkey(pubkey);
+      const eventsForProfile = profileEvents(pubkey);
+      profileModalAvatarEl.src = picture;
+      profileModalAvatarEl.alt = `${name} avatar`;
+      profileModalTitleEl.textContent = name;
+      profileModalMetaEl.textContent = pubkey;
+      profileModalBodyEl.innerHTML = `
+        <div class="small muted" style="margin-bottom:8px;">${profile.about || participant.about || ''}</div>
+        <div class="small" style="margin-bottom:8px;"><span class="muted">Profile:</span> <a href="${profileUrl}" target="_blank" rel="noreferrer noopener">${profileUrl}</a></div>
+        <div class="small" style="margin-bottom:8px;"><span class="muted">Fallback:</span> <a href="${alternateSource}" target="_blank" rel="noreferrer noopener">${alternateSource}</a></div>
+        <div class="small"><span class="muted">Events:</span></div>
+        <ul class="small" style="margin:6px 0 0 18px; padding:0; max-height:240px; overflow:auto;">
+          ${eventsForProfile.length
+            ? eventsForProfile.map((event) => `<li style="word-break:break-all;"><span class="mono">${event.id}</span> <span class="muted">kind ${event.kind}</span> <span class="muted">${new Date(event.created_at * 1000).toLocaleString()}</span></li>`).join('')
+            : '<li>none</li>'}
+        </ul>
+      `;
+      profileModalBackdropEl.classList.add('open');
+      profileModalBackdropEl.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeProfileModal() {
+      profileModalBackdropEl.classList.remove('open');
+      profileModalBackdropEl.setAttribute('aria-hidden', 'true');
+    }
+
+    function normalizeRelayUrl(url) {
+      try {
+        const parsed = new URL(url);
+        if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') return null;
+        return parsed.toString().replace(/\/$/, '');
+      } catch {
+        return null;
+      }
+    }
+
+    function addBroadcastRelay(url) {
+      const normalized = normalizeRelayUrl(url);
+      if (!normalized || broadcastRelays.has(normalized)) return false;
+      broadcastRelays.add(normalized);
+      watchRelayMetadata(normalized);
+      render();
+      scheduleCachePersist();
+      return true;
+    }
+
+    function collectRelayUrls(value, found = new Set()) {
+      if (typeof value === 'string') {
+        const normalized = normalizeRelayUrl(value);
+        if (normalized) found.add(normalized);
+        return found;
+      }
+
+      if (Array.isArray(value)) {
+        for (const item of value) collectRelayUrls(item, found);
+        return found;
+      }
+
+      if (value && typeof value === 'object') {
+        for (const item of Object.values(value)) collectRelayUrls(item, found);
+      }
+
+      return found;
+    }
+
+    // Step 16: learn about quorum members and relays from incoming events.
+    function discoverFromEvent(event) {
+      if (event.kind === 10002) {
+        for (const tag of event.tags) {
+          if (tag[0] === 'r' && tag[1]) addBroadcastRelay(tag[1]);
+        }
+        return;
+      }
+
+      if (event.kind === 0) {
+        try {
+          const metadata = JSON.parse(event.content || '{}');
+          const profile = createParticipantProfile({
+            name: metadata.name || event.pubkey.slice(0, 8),
+            displayName: metadata.display_name || metadata.displayName || metadata.name || event.pubkey.slice(0, 8),
+            about: metadata.about || '',
+            picture: metadata.picture || '',
+            website: metadata.website || '',
+            alternateSource: metadata.alternate_source || metadata.alternateSource || njumpProfileUrlForPubkey(event.pubkey),
+            profileUrl: metadata.profile_url || metadata.profileUrl || nostrProfileUrlForPubkey(event.pubkey),
+            quorumId: metadata.quorum_id || QUORUM_ID,
+            quorumEventId: metadata.quorum_event_id || metadata.quorumId || QUORUM_ID,
+          });
+          registerParticipant({
+            pk: event.pubkey,
+            eventId: event.id,
+            name: profile.name,
+            displayName: profile.display_name,
+            about: profile.about,
+            picture: profile.picture,
+            website: profile.website,
+            profile,
+          });
+          probeNjump(event.id);
+          for (const relay of collectRelayUrls(metadata)) {
+            addBroadcastRelay(relay);
+          }
+          render();
+        } catch {
+          // Ignore malformed metadata.
+        }
+        return;
+      }
+
+      if (event.kind === 3) {
+        try {
+          const legacy = JSON.parse(event.content || '{}');
+          for (const relay of collectRelayUrls(legacy)) addBroadcastRelay(relay);
+        } catch {
+          // Ignore malformed legacy relay lists.
+        }
+      }
+    }
+
+    // Step 17: subscribe once to the relay metadata feeds and start polling.
+    function startRelayDiscovery() {
+      if (relayDiscoveryStarted) return;
+      relayDiscoveryStarted = true;
+
+      for (const relay of RELAYS) {
+        watchRelayMetadata(relay);
+      }
+      scheduleParticipantPolling();
+      scheduleProfilePolling();
+      void pollQuorumMemberMetadata();
+      void warmParticipantProfiles();
+    }
+
+    async function pollQuorumMemberMetadata() {
+      if (participantPollInFlight || participants.length === 0) return;
+      participantPollInFlight = true;
+
+      try {
+        const relays = [...broadcastRelays];
+        const maybeEvents = await Promise.resolve(
+          pool.querySync(relays, { kinds: [0, 10002, 3] })
+        );
+        const foundEvents = Array.isArray(maybeEvents)
+          ? maybeEvents
+          : maybeEvents
+            ? [maybeEvents]
+            : [];
+
+        for (const event of foundEvents) {
+          discoverFromEvent(event);
+          probeNjump(event.id);
+        }
+      } catch (e) {
+        setStatus(`Participant metadata poll failed: ${e.message}`, false);
+      } finally {
+        participantPollInFlight = false;
+      }
+    }
+
+    function watchRelayMetadata(relayUrl) {
+      const normalized = normalizeRelayUrl(relayUrl);
+      if (!normalized || watchedRelays.has(normalized)) return;
+      watchedRelays.add(normalized);
+
+      pool.subscribeMany(
+        [normalized],
+        { kinds: [0, 10002, 3], limit: 200 },
+        {
+          onevent(event) {
+            discoverFromEvent(event);
+          },
+          oneose() {},
+        }
+      );
+    }
+
+    // Step 18: seed the fixed five-participant quorum used by the demo.
+    async function initParticipants() {
+      participants = await Promise.all(Array.from({ length: FED_COUNT }, async (_, i) => {
+        const name = PARTICIPANT_NAMES[i] || `participant${i + 1}`;
+        const sk = await sha256Bytes(name);
+        const pk = getPublicKey(sk);
+        const displayName = PARTICIPANT_DISPLAY_NAMES[i] || `Participant ${i + 1}`;
+        const profile = createParticipantProfile({
+          name,
+          displayName,
+          about: `Member ${i + 1} of the krackpot-rs quorum`,
+          picture: `https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(name)}`,
+          website: SITE_URL,
+          alternateSource: njumpProfileUrlForPubkey(pk),
+          profileUrl: nostrProfileUrlForPubkey(pk),
+          quorumId: QUORUM_ID,
+        });
+        return {
+          name,
+          displayName,
+          profile,
+          sk,
+          pk,
+          quorumId: QUORUM_ID,
+          picture: profile.picture,
+        };
+      }));
+      discoveredParticipants.clear();
+
+      authorEl.innerHTML = participants
+        .map((p, i) => `<option value="${i}">${p.name} (${p.pk.slice(0, 12)}…)</option>`)
+        .join('');
+    }
+
+    // Step 19: reset the DAG model and repopulate the local UI state.
+    async function resetDag() {
+      await initParticipants();
+      dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
+      events.clear();
+      njumpAvailability.clear();
+      render();
+      setStatus('WASM loaded. DAG reset with 5 participants.', true);
+      await publishProfiles();
+    }
+
+    function buildMetadataEvent(author, quorumEventId = author.quorumId) {
+      const baseProfile = author.profile || {};
+      const profile = createParticipantProfile({
+        name: baseProfile.name || author.name,
+        displayName: baseProfile.display_name || author.displayName,
+        about: `${baseProfile.about || author.about} quorum_event_id: ${quorumEventId}.`,
+        picture: baseProfile.picture || author.picture,
+        website: baseProfile.website || author.website,
+        alternateSource: baseProfile.alternate_source || author.profile?.alternate_source || njumpProfileUrlForPubkey(author.pk),
+        profileUrl: baseProfile.profile_url || author.profile?.profile_url || nostrProfileUrlForPubkey(author.pk),
+        quorumId: baseProfile.quorum_id || author.quorumId,
+        quorumEventId,
+      });
+
+      return finalizeEvent({
+        kind: 0,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [],
+        content: JSON.stringify(profile),
+        pubkey: author.pk,
+      }, author.sk);
+    }
+
+    function buildQuorumGroupEvent(author, participantPubkeys) {
+      const tags = [
+        ...participantPubkeys.map((pk) => ['p', pk]),
+        ['d', QUORUM_ID],
+        ['t', 'krackpot-rs'],
+        ['t', 'quorum'],
+      ];
+
+      return finalizeEvent({
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content: `Quorum member note for ${participants.length} participants.`,
+        pubkey: author.pk,
+      }, author.sk);
+    }
+
+    function currentTips() {
+      return JSON.parse(dag.tip_ids());
+    }
+
+    function canonicalSet() {
+      return new Set(JSON.parse(dag.canonical_ids()));
+    }
+
+    function isCanonical(id) {
+      return canonicalSet().has(id);
+    }
+
+    function resolveParents() {
+      const mode = parentsModeEl.value;
+      if (mode === 'none') return [];
+      if (mode === 'custom') {
+        return customParentsEl.value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+      return currentTips();
+    }
+
+    // Step 20: create a signed event with the requested parent set.
+    function buildEvent(author, kind, content, parentIds) {
+      const tags = parentIds.map((id) => ['e', id]);
+      const event = {
+        kind,
+        created_at: Math.floor(Date.now() / 1000),
+        tags,
+        content,
+        pubkey: author.pk,
+      };
+      return finalizeEvent(event, author.sk);
+    }
+
+    // Step 21: insert events into the WASM DAG and mirror them into UI state.
+    function insertEvent(event) {
+      const result = JSON.parse(dag.insert(JSON.stringify(event)));
+      if (result.type === 'Duplicate') {
+        throw new Error('Duplicate event');
+      }
+      probeNjump(event.id);
+      events.set(event.id, {
+        id: event.id,
+        kind: event.kind,
+        author: event.pubkey,
+        content: event.content,
+        created_at: event.created_at,
+        parents: event.tags.filter((t) => t[0] === 'e').map((t) => t[1]),
+        status: result.type,
+      });
+      scheduleCachePersist();
+    }
+
+    // Step 22: serialize relay publishing so the demo stays predictable.
+    function queueBroadcast(eventsToPublish, successLabel) {
+      return new Promise((resolve) => {
+        broadcastQueue.push({ eventsToPublish, successLabel, resolve });
+        if (!broadcastQueueRunning) {
+          void drainBroadcastQueue();
+        }
+      });
+    }
+
+    async function drainBroadcastQueue() {
+      if (broadcastQueueRunning) return;
+      broadcastQueueRunning = true;
+
+      try {
+        while (broadcastQueue.length) {
+          const { eventsToPublish, successLabel, resolve } = broadcastQueue.shift();
+          let published = 0;
+
+          for (const event of eventsToPublish) {
+            for (const relay of [...broadcastRelays]) {
+              try {
+                await Promise.any(pool.publish([relay], event));
+                published += 1;
+              } catch {
+                // Ignore relay-specific publish failures and keep moving.
+              }
+              await sleep(300);
+            }
+            await sleep(700);
+          }
+
+          if (published > 0) {
+            setStatus(`${successLabel} quietly broadcast to ${broadcastRelays.size} relays.`, true);
+          } else {
+            setStatus(`Local only: broadcast failed for ${successLabel}`, false);
+            scheduleRetry(
+              `${successLabel}:${eventsToPublish.map((event) => event.id).join(',')}`,
+              () => queueBroadcast(eventsToPublish, successLabel),
+              30000
+            );
+          }
+          resolve();
+        }
+      } finally {
+        broadcastQueueRunning = false;
+      }
+    }
+
+    async function publishEvent(event) {
+      return queueBroadcast([event], `Event ${event.kind}`);
+    }
+
+    async function publishEvents(eventsToPublish, successLabel) {
+      return queueBroadcast(eventsToPublish, successLabel);
+    }
+
+    function createAckRoundEvents() {
+      const tips = currentTips();
+      const acks = [];
+      for (const author of participants) {
+        const event = buildEvent(author, 21000, '', tips);
+        insertEvent(event);
+        acks.push(event);
+      }
+      return acks;
+    }
+
+    function createGenesisEvents() {
+      const seeded = [];
+      for (const author of participants) {
+        const event = buildEvent(author, 21000, 'genesis', []);
+        insertEvent(event);
+        seeded.push(event);
+      }
+      return seeded;
+    }
+
+    async function createEvent() {
+      try {
+        const author = participants[Number(authorEl.value)];
+        const kind = Number(kindEl.value);
+        const content = contentEl.value.trim();
+        const parents = resolveParents();
+        const event = kind === 0 && !content
+          ? buildMetadataEvent(author)
+          : buildEvent(author, kind, content, parents);
+        insertEvent(event);
+        contentEl.value = '';
+        render();
+        await publishEvent(event);
+      } catch (e) {
+        setStatus(`Create failed: ${e.message}`, false);
+      }
+    }
+
+    async function seedGenesis() {
+      try {
+        const seeded = createGenesisEvents();
+        render();
+        await publishEvents(seeded, 'Genesis quorum');
+      } catch (e) {
+        setStatus(`Seed failed: ${e.message}`, false);
+      }
+    }
+
+    async function runAckRound() {
+      try {
+        const acks = createAckRoundEvents();
+        render();
+        await publishEvents(acks, 'Ack round');
+      } catch (e) {
+        setStatus(`Ack round failed: ${e.message}`, false);
+      }
+    }
+
+    async function autoAckUntilCanonical(targetId, maxRounds = 5) {
+      for (let round = 1; round <= maxRounds; round++) {
+        if (isCanonical(targetId)) return;
+
+        const acks = createAckRoundEvents();
+        render();
+        await publishEvents(acks, `Auto ack round ${round}`);
+
+        if (isCanonical(targetId)) return;
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
+      }
+    }
+
+    async function bootstrapCanonicality(targetIds, maxRounds = 5) {
+      for (let round = 1; round <= maxRounds; round++) {
+        if (targetIds.every((id) => isCanonical(id))) return;
+
+        const acks = createAckRoundEvents();
+        render();
+        await publishEvents(acks, `Bootstrap ack round ${round}`);
+
+        if (targetIds.every((id) => isCanonical(id))) return;
+        await sleep(250);
+      }
+    }
+
+    // Step 23: publish the bootstrap quorum metadata and make it canonical.
+    async function publishProfiles() {
+      const seeded = createGenesisEvents();
+      const participantPubkeys = participants.map((participant) => participant.pk);
+      const quorumEvent = buildQuorumGroupEvent(participants[participants.length - 1], participantPubkeys);
+      insertEvent(quorumEvent);
+      render();
+      void publishEvents(seeded, 'Genesis quorum');
+      render();
+      void publishEvents([quorumEvent], 'Quorum note');
+
+      const profileEvents = participants.map((author) => buildMetadataEvent(author, quorumEvent.id));
+      for (const event of profileEvents) {
+        insertEvent(event);
+      }
+      render();
+      void publishEvents(profileEvents, 'Quorum metadata');
+      await bootstrapCanonicality([
+        ...seeded.map((event) => event.id),
+        quorumEvent.id,
+        ...profileEvents.map((event) => event.id),
+      ]);
+    }
+
+    // Step 24: render the entire dashboard from the current in-memory state.
+    function render() {
+      const canonical = canonicalSet();
+      const tips = currentTips();
+      const list = [...events.values()]
+        .filter((event) => event.kind !== 0)
+        .sort((a, b) => a.created_at - b.created_at || a.id.localeCompare(b.id));
+      const threshold = Math.floor(participants.length / 2);
+      const relayList = [...RELAYS].sort();
+      const quorumMembers = [...participants].sort((a, b) => a.name.localeCompare(b.name));
+      profileStripEl.innerHTML = quorumMembers.map((p) => {
+        const profile = p.profile || {};
+        const name = profile.name || p.name;
+        const picture = profile.picture || p.picture;
+        const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(p.pk);
+        return `
+          <button class="profile-card" type="button" data-pk="${p.pk}">
+            <div class="row" style="align-items:center;">
+              <img class="avatar" src="${picture}" alt="${name} avatar" />
+              <div>
+                <div><b>${name}</b></div>
+              </div>
+            </div>
+          </button>
+        `;
+      }).join('');
+      const quorumMemberMarkup = quorumMembers.map((p) => {
+        const profile = p.profile || {};
+        const discovered = discoveredParticipants.get(p.pk);
+        const njump = discovered?.eventId ? njumpAvailability.get(discovered.eventId) : null;
+        const njumpLink = njump?.available
+          ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+          : '';
+        const profileUrl = profile.profile_url || nostrProfileUrlForPubkey(p.pk);
+        const picture = profile.picture || p.picture;
+        const name = profile.name || p.name;
+        return `<li style="word-break:break-all;"><span class="mono">${p.pk}</span> <span class="small muted">(<a href="${profileUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${picture}" alt="${name} avatar" /></a><span>${name}</span>)</span>${njumpLink}</li>`;
+      }).join('');
+      const tipsMarkup = tips.length
+        ? tips.map((tip) => {
+            const tipEvent = events.get(tip);
+            const signerProfile = tipEvent ? participantProfile(tipEvent.author) : null;
+            const signerName = tipEvent ? participantLabel(tipEvent.author) : 'unknown';
+            const signerUrl = signerProfile?.profile_url || nostrProfileUrlForPubkey(tipEvent?.author || '');
+            const signerPicture = signerProfile?.picture || '';
+            const signerAvatar = signerPicture
+              ? `<a href="${signerUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${signerPicture}" alt="${signerName} avatar" /></a>`
+              : '';
+            const njump = njumpAvailability.get(tip);
+            const njumpLink = njump?.available
+              ? ` <a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+              : '';
+            return `<li style="word-break:break-all;"><span class="mono">${tip}</span> <span class="small muted">(${signerAvatar}${signerName})</span>${njumpLink}</li>`;
+          }).join('')
+        : '<li>none</li>';
+      stateListEl.innerHTML = `
+        <li>${list.length} events</li>
+        <li>${canonical.size} canonical</li>
+        <li>threshold &gt; ${threshold} of ${participants.length}</li>
+        <li>quorum members (${quorumMembers.length}):
+          <ul style="margin:6px 0 0 16px;">
+            ${quorumMemberMarkup}
+          </ul>
+        </li>
+        <li>broadcast relays (${RELAYS.length}):
+          <ul style="margin:6px 0 0 16px;">
+            ${relayList.map((relay) => `<li style="word-break:break-all;"><span class="mono">${relay}</span></li>`).join('')}
+          </ul>
+        </li>
+        <li>Tips:<ul style="margin:6px 0 0 16px;">${tipsMarkup}</ul></li>
+      `;
+
+      document.getElementById('events').innerHTML = list.map((e) => {
+        const signerProfile = participantProfile(e.author) || {};
+        const who = participantLabel(e.author);
+        const stateClass = canonical.has(e.id) ? 'canonical' : 'pending';
+        const stateText = canonical.has(e.id) ? 'canonical' : 'pending';
+        const njump = njumpAvailability.get(e.id);
+        const njumpMarkup = njump?.available
+          ? `<a class="njump-link" href="${njump.url}" target="_blank" rel="noreferrer noopener" title="Open in njump">●</a>`
+          : '';
+        const signerUrl = signerProfile.profile_url || nostrProfileUrlForPubkey(e.author);
+        const signerPicture = signerProfile.picture || '';
+        const signerAvatar = signerPicture
+          ? `<a href="${signerUrl}" target="_blank" rel="noreferrer noopener" title="Open profile in nostr.com"><img class="avatar" src="${signerPicture}" alt="${who} avatar" /></a>`
+          : '';
+        return `
+          <div class="event">
+            <div class="row" style="justify-content:space-between;">
+              <div><b>${signerAvatar}${who}</b> <span class="small muted">kind ${e.kind}</span></div>
+              <div class="row">
+                ${njumpMarkup}
+                <span class="chip ${stateClass}">${stateText}</span>
+              </div>
+            </div>
+            <div class="mono">id: ${e.id}</div>
+            <div class="small" style="word-break:break-all;">parents: ${e.parents.length ? e.parents.join(', ') : 'none'}</div>
+            <div class="small">content: ${e.content ? e.content.replace(/[<>&]/g, '') : '""'}</div>
+          </div>
+        `;
+      }).join('');
+
+      setStatus('DAG updated.', true);
+      scheduleCachePersist();
+    }
+
+    createFormEl.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      await createEvent();
+    });
+    profileStripEl.addEventListener('click', (e) => {
+      const card = e.target.closest('[data-pk]');
+      if (!card) return;
+      openProfileModal(card.getAttribute('data-pk'));
+    });
+    profileModalBackdropEl.addEventListener('click', (e) => {
+      if (e.target === profileModalBackdropEl) closeProfileModal();
+    });
+    profileModalCloseEl.addEventListener('click', closeProfileModal);
+    document.getElementById('seedBtn').addEventListener('click', () => { void seedGenesis(); });
+    document.getElementById('ackRoundBtn').addEventListener('click', () => { void runAckRound(); });
+    document.getElementById('resetBtn').addEventListener('click', () => { void resetDag(); });
+    setControlsEnabled(true);
+    updateLibp2pFooter();
+
+    try {
+      setControlsEnabled(true);
+      await init();
+      await initParticipants();
+      dag = new WasmDag(JSON.stringify(participants.map((p) => p.pk)));
+      startRelayDiscovery();
+      void initLibp2pNode();
+      if (restoreCache()) {
+        render();
+        setStatus('Restored cached demo state.', true);
+      } else {
+        await resetDag();
+      }
+    } catch (e) {
+      setStatus(`WASM load failed: ${e.message}`, false);
+      setControlsEnabled(true);
+    }
+  </script>
+  <footer id="sharedFooter"></footer>
+  <script type="module">
+    // Step 25: preload libp2p modules so the footer can report availability.
+    import { createLoggerFooter } from './shared/logger-footer.js';
+    const modules = [
+      ['libp2p', 'https://esm.sh/libp2p'],
+      ['@libp2p/interface', 'https://esm.sh/@libp2p/interface'],
+      ['@libp2p/peer-id', 'https://esm.sh/@libp2p/peer-id'],
+      ['@libp2p/logger', 'https://esm.sh/@libp2p/logger'],
+      ['@libp2p/websockets', 'https://esm.sh/@libp2p/websockets'],
+      ['@libp2p/webrtc', 'https://esm.sh/@libp2p/webrtc'],
+      ['@libp2p/webtransport', 'https://esm.sh/@libp2p/webtransport'],
+      ['@libp2p/circuit-relay-v2', 'https://esm.sh/@libp2p/circuit-relay-v2'],
+      ['@libp2p/tcp', 'https://esm.sh/@libp2p/tcp'],
+      ['@libp2p/memory', 'https://esm.sh/@libp2p/memory'],
+      ['@chainsafe/libp2p-noise', 'https://esm.sh/@chainsafe/libp2p-noise'],
+      ['@chainsafe/libp2p-yamux', 'https://esm.sh/@chainsafe/libp2p-yamux'],
+      ['@libp2p/tls', 'https://esm.sh/@libp2p/tls'],
+      ['@libp2p/mplex', 'https://esm.sh/@libp2p/mplex'],
+      ['@libp2p/plaintext', 'https://esm.sh/@libp2p/plaintext'],
+      ['@libp2p/bootstrap', 'https://esm.sh/@libp2p/bootstrap'],
+      ['@libp2p/kad-dht', 'https://esm.sh/@libp2p/kad-dht'],
+      ['@libp2p/delegated-peer-routing', 'https://esm.sh/@libp2p/delegated-peer-routing'],
+      ['@libp2p/delegated-content-routing', 'https://esm.sh/@libp2p/delegated-content-routing'],
+      ['@libp2p/mdns', 'https://esm.sh/@libp2p/mdns'],
+      ['@chainsafe/discv5', 'https://esm.sh/@chainsafe/discv5'],
+      ['@libp2p/gossipsub', 'https://esm.sh/@libp2p/gossipsub'],
+      ['@libp2p/floodsub', 'https://esm.sh/@libp2p/floodsub'],
+      ['@libp2p/autonat', 'https://esm.sh/@libp2p/autonat'],
+      ['@libp2p/autonat-v2', 'https://esm.sh/@libp2p/autonat-v2'],
+      ['@libp2p/identify', 'https://esm.sh/@libp2p/identify'],
+      ['@libp2p/ping', 'https://esm.sh/@libp2p/ping'],
+    ];
+
+    const results = await Promise.allSettled(
+      modules.map(async ([name, url]) => [name, await import(url)])
+    );
+    const registry = {};
+    let loaded = 0;
+    let failed = 0;
+
+    for (const [index, result] of results.entries()) {
+      const [name] = modules[index];
+      if (result.status === 'fulfilled') {
+        registry[name] = result.value[1];
+        loaded += 1;
+      } else {
+        failed += 1;
+        console.warn(`Failed to load ${name}:`, result.reason);
+      }
+    }
+
+    window.__sharedFooter = createLoggerFooter(document.getElementById('sharedFooter'), {
+      title: 'Logger',
+      initialState: 'idle',
+      initialTitle: 'starting...',
+    });
+    window.__libp2pModuleRegistry = registry;
+    window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
+  </script>
+  <script type="module">
+    // Step 26: stage the Git viewer example clone and fetch workflow.
+    import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
+    import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
+    import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
+
+    const fs = new LightningFS('fs');
+    const dir = '/repo';
+    const krackpotDir = '/krackpot-rs';
+
+    async function cloneRepo(repoUrl, targetDir) {
+      await git.clone({
+        fs,
+        http,
+        dir: targetDir,
+        corsProxy: 'https://cors.isomorphic-git.org',
+        url: repoUrl,
+        singleBranch: true,
+        depth: 1,
+      });
+    }
+
+    async function fetchAllTags(repoUrl, targetDir) {
+      await git.fetch({
+        fs,
+        http,
+        dir: targetDir,
+        corsProxy: 'https://cors.isomorphic-git.org',
+        url: repoUrl,
+        tags: true,
+      });
+    }
+
+    function setGitStatus(text) {
+      window.__sharedFooter?.log('git', text, 'trace');
+    }
+
+    async function runGitWorkflow() {
+      try {
+        setGitStatus('cloning...');
+        await cloneRepo('https://github.com/isomorphic-git/isomorphic-git', dir);
+        await fetchAllTags('https://github.com/isomorphic-git/isomorphic-git', dir);
+        setGitStatus('cloning krackpot-rs...');
+        await cloneRepo('https://github.com/RandyMcMillan/krackpot-rs', krackpotDir);
+        await fetchAllTags('https://github.com/RandyMcMillan/krackpot-rs', krackpotDir);
+
+        setGitStatus('reading history...');
+        const commits = await git.log({ fs, dir });
+        console.log('Latest Commit:', commits[0].commit.message);
+
+        setGitStatus('writing file...');
+        await fs.promises.writeFile(`${dir}/example.txt`, 'Hello World!');
+
+        setGitStatus('committing...');
+        await git.add({ fs, dir, filepath: 'example.txt' });
+        const sha = await git.commit({
+          fs,
+          dir,
+          author: {
+            name: 'Developer',
+            email: 'dev@example.com',
+          },
+          message: 'Add example.txt via browser',
+        });
+
+        console.log('New Commit SHA:', sha);
+        setGitStatus(`done: ${sha}`);
+      } catch (e) {
+        setGitStatus('unavailable');
+        console.warn('git bootstrap failed:', e);
+      }
+    }
+
+    void runGitWorkflow();
+  </script>
+  <script type="module">
+    // Step 27: opportunistically cache shared dependencies for offline-ish reuse.
+    import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
+
+    const depsFs = new LightningFS('deps');
+    const depsDir = '/deps';
+    const dependencyUrls = [
+      'https://esm.sh/nostr-tools@2.10.4/pure',
+      'https://esm.sh/nostr-tools@2.10.4/nip19',
+      'https://esm.sh/nostr-tools@2.10.4/pool',
+      'https://esm.sh/libp2p',
+      'https://esm.sh/@libp2p/interface',
+      'https://esm.sh/@libp2p/peer-id',
+      'https://esm.sh/@libp2p/logger',
+      'https://esm.sh/@libp2p/websockets',
+      'https://esm.sh/@libp2p/webrtc',
+      'https://esm.sh/@libp2p/webtransport',
+      'https://esm.sh/@libp2p/circuit-relay-v2',
+      'https://esm.sh/@libp2p/tcp',
+      'https://esm.sh/@libp2p/memory',
+      'https://esm.sh/@chainsafe/libp2p-noise',
+      'https://esm.sh/@chainsafe/libp2p-yamux',
+      'https://esm.sh/@libp2p/tls',
+      'https://esm.sh/@libp2p/mplex',
+      'https://esm.sh/@libp2p/plaintext',
+      'https://esm.sh/@libp2p/bootstrap',
+      'https://esm.sh/@libp2p/kad-dht',
+      'https://esm.sh/@libp2p/delegated-peer-routing',
+      'https://esm.sh/@libp2p/delegated-content-routing',
+      'https://esm.sh/@libp2p/mdns',
+      'https://esm.sh/@chainsafe/discv5',
+      'https://esm.sh/@libp2p/gossipsub',
+      'https://esm.sh/@libp2p/floodsub',
+      'https://esm.sh/@libp2p/autonat',
+      'https://esm.sh/@libp2p/autonat-v2',
+      'https://esm.sh/@libp2p/identify',
+      'https://esm.sh/@libp2p/ping',
+      'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm',
+      'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm',
+      'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm',
+    ];
+
+    function setDepsStatus(text) {
+      window.__sharedFooter?.log('deps', text);
+    }
+
+    function safeFilename(url) {
+      return encodeURIComponent(url).replace(/%2F/g, '_').replace(/%3A/g, '-');
+    }
+
+    async function cacheDependency(url) {
+      const response = await fetch(url, { mode: 'cors', cache: 'force-cache' });
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+      const text = await response.text();
+      await depsFs.promises.writeFile(`${depsDir}/${safeFilename(url)}.mjs`, text);
+    }
+
+    async function cacheDependencies() {
+      try {
+        await depsFs.promises.mkdir(depsDir, { recursive: true });
+        setDepsStatus(`caching 0/${dependencyUrls.length}...`);
+
+        let done = 0;
+        for (const url of dependencyUrls) {
+          try {
+            await cacheDependency(url);
+          } catch (e) {
+            console.warn('dependency cache failed:', url, e);
+          } finally {
+            done += 1;
+            setDepsStatus(`caching ${done}/${dependencyUrls.length}`);
+            await new Promise((resolve) => window.setTimeout(resolve, 50));
+          }
+        }
+
+        setDepsStatus(`cached ${done}/${dependencyUrls.length}`);
+      } catch (e) {
+        setDepsStatus('unavailable');
+        console.warn('dependency cache bootstrap failed:', e);
+      }
+    }
+
+    void cacheDependencies();
+  </script>
+</body>
+</html>

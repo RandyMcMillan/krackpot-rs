@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
+  <link rel="icon" href="../shared/favicon.ico" />
+  <link rel="stylesheet" href="../shared/page.css" />
+  <title>krackpot-rs Blame View</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg:#0f172a; --fg:#e2e8f0; --muted:#94a3b8; --panel:#111827; --surface:#0b1220; --surface-strong:#020617;
+      --border:#334155; --border-strong:#fb923c; --accent:#fb923c; --button-bg:#c2410c; --button-hover:#ea580c; --status-bg:#1f2937; --shadow:rgba(0,0,0,.45);
+    }
+    @media (prefers-color-scheme: light) {
+      :root {
+        --bg:#f8fafc; --fg:#0f172a; --muted:#475569; --panel:#ffffff; --surface:#f1f5f9; --surface-strong:#e2e8f0;
+        --border:#cbd5e1; --border-strong:#ea580c; --accent:#ea580c; --button-bg:#f97316; --button-hover:#ea580c; --status-bg:#e2e8f0; --shadow:rgba(15,23,42,.12);
+      }
+    }
+    * { box-sizing:border-box; }
+    :root { --scrollbar-thumb: rgba(148,163,184,0); --scrollbar-track: transparent; }
+    html { scrollbar-gutter: stable; }
+    html.scrollbars-active { --scrollbar-thumb: rgba(148,163,184,.55); }
+    html, body, * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track); }
+    html::-webkit-scrollbar, body::-webkit-scrollbar, *::-webkit-scrollbar { width:10px; height:10px; }
+    html::-webkit-scrollbar-track, body::-webkit-scrollbar-track, *::-webkit-scrollbar-track { background:transparent; }
+    html::-webkit-scrollbar-thumb, body::-webkit-scrollbar-thumb, *::-webkit-scrollbar-thumb { background-color:var(--scrollbar-thumb); border-radius:999px; border:2px solid transparent; background-clip:padding-box; transition:background-color .2s ease; }
+    body { font-family: system-ui, -apple-system, sans-serif; line-height:1.6; margin:0; padding:0 0 calc(var(--sticky-footer-space, 80px) + 24px); background:var(--bg); color:var(--fg); }
+    .page-content { max-width: 1280px; margin: 2rem auto; padding: 0 1.5rem; }
+    .panel { background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:14px; margin:14px 0; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .muted { color:var(--muted); }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; }
+    .pill { display:inline-block; padding:2px 8px; border-radius:999px; background:var(--status-bg); }
+    .status { display:inline-flex; align-items:center; gap:6px; padding:8px 10px; border-radius:6px; background:var(--status-bg); }
+    .status-dot { width:8px; height:8px; border-radius:999px; background:currentColor; box-shadow:0 0 0 2px var(--surface); }
+    .status-idle { color: var(--muted); }
+    .status-checking { color: var(--status-checking); }
+    .status-available { color: var(--status-available); }
+    .status-unavailable { color: var(--status-unavailable); }
+    .repo-hero { border:1px solid var(--border); border-radius:8px; background:var(--panel); padding:16px; }
+    .repo-breadcrumbs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; color:var(--muted); font-size:12px; }
+    .repo-breadcrumbs a { color:inherit; text-decoration:none; }
+    .repo-breadcrumbs a:hover { color:var(--accent); }
+    .repo-title-row { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; margin-top:8px; }
+    .repo-title { display:flex; flex-direction:column; gap:4px; }
+    .repo-title h2 { margin:0; font-size:28px; line-height:1.15; }
+    .repo-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .repo-tabs { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; border-bottom:1px solid var(--border); margin-top:14px; }
+    .repo-tab { display:inline-flex; align-items:center; gap:8px; padding:10px 2px; border-bottom:2px solid transparent; color:var(--tab-fg); text-decoration:none; }
+    .repo-tab:hover { color:var(--tab-hover-fg); }
+    .repo-tab.active { color:var(--tab-active-fg); border-bottom-color:var(--accent); font-weight:600; }
+    .repo-toolbar { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-top:14px; }
+    .repo-select { min-width:220px; }
+    .repo-layout { display:grid; grid-template-columns: minmax(0, 1fr); gap:14px; margin-top:14px; }
+    .repo-sidebar-card { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:12px; }
+    .blob-shell { border:1px solid var(--border); border-radius:8px; overflow:hidden; background:var(--surface); }
+    .blob-toolbar { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap; padding:12px; border-bottom:1px solid var(--border); background:var(--status-bg); }
+    .blob-toolbar .repo-toolbar { margin-top:0; }
+    .blob-meta { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+    .blame-shell { width:100%; overflow:auto; }
+    .blame-head, .blame-row { display:grid; grid-template-columns: 12ch 4ch 22ch minmax(0, 1fr); gap:12px; align-items:start; }
+    /* 1. Commit hash */
+    .blame-head { padding:10px 12px; background:var(--status-bg); color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.04em; border-bottom:1px solid var(--border); }
+    /* 2. Line */
+    .blame-head > :nth-child(2) { padding-left:2ch; }
+    .blame-row { padding:8px 12px; border-top:1px solid var(--border); }
+    /* 3. Time */
+    .blame-head > :nth-child(3) { padding-left:5ch; }
+    .blame-row > :nth-child(2) { transform:translateX(-4ch); }
+    .blame-row > :nth-child(3) { transform:translateX(-1ch); }
+    .blame-row > :nth-child(4) { transform:translateX(-5ch); }
+    .blame-row:first-child { border-top:0; }
+    /* 4. Content */
+    .blame-head > :nth-child(4) { padding-left:9ch; }
+    .blame-hash, .blame-lno, .blame-time, .blame-text { min-width:0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:12px; line-height:1.45; }
+    .blame-hash { color:var(--accent); white-space:nowrap; }
+    .blame-lno { color:var(--muted); text-align:right; white-space:nowrap; }
+    .blame-time { color:var(--muted); white-space:nowrap; }
+    .blame-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+    .blame-meta { color:var(--muted); font-size:11px; margin-top:2px; }
+    .detail-empty { padding:18px; border:1px dashed var(--border); border-radius:8px; }
+    .blame-empty { padding:18px; }
+    @media (max-width: 1100px) {
+      .page-content { max-width: 100%; padding: 0 1rem; }
+      .header-container { flex-direction:column; align-items:flex-start; padding:1rem 1.25rem; }
+      .blame-head, .blame-row { grid-template-columns: 11ch 4ch 20ch minmax(0, 1fr); gap:8px; }
+      .blame-head > :nth-child(4) { padding-left:4ch; }
+      .blame-row > :nth-child(4) { transform:translateX(-2ch); }
+    }
+    @media (max-width: 900px) {
+      .page-content { margin: 1.25rem auto; padding: 0 1rem; }
+      .header-container { padding:1rem; }
+      .blame-head, .blame-row { grid-template-columns:1fr; gap:6px; }
+      .blame-row > :nth-child(2), .blame-row > :nth-child(3), .blame-row > :nth-child(4) { transform:none; }
+      .blame-lno { text-align:left; }
+      .blame-head > :nth-child(2), .blame-head > :nth-child(3), .blame-head > :nth-child(4) { padding-left:0; }
+    }
+    @media (max-width: 640px) {
+      .header-container { gap:.5rem; }
+      .nav-links { gap:.75rem; }
+      .panel, .repo-hero, .repo-sidebar-card { padding:12px; }
+      .row { gap:8px; }
+      button, input, select { width:100%; }
+    }
+    .sticky-header { position:sticky; top:0; width:100%; z-index:1000; background:var(--surface-strong); color:var(--fg); box-shadow:0 2px 10px var(--shadow); }
+    .header-container { display:flex; justify-content:space-between; align-items:center; max-width:1200px; margin:0 auto; padding:1rem 2rem; gap:1rem; }
+    .logo { font-size:1.5rem; font-weight:bold; color:var(--accent); text-decoration:none; display:inline-block; }
+    .header-subtitle { margin-top:4px; }
+    .nav-links { display:flex; gap:1.5rem; list-style:none; margin:0; padding:0; flex-wrap:wrap; }
+    .nav-links a { color:var(--fg); text-decoration:none; transition:color .2s ease; }
+    .nav-links a:hover { color:var(--accent); }
+    .nav-link.current { color:var(--button-fg); font-weight:600; }
+    button, a.button { background:var(--button-bg); color:var(--button-fg); border:1px solid var(--border-strong); border-radius:6px; padding:8px 12px; text-decoration:none; cursor:pointer; }
+    button:hover, a.button:hover { background:var(--button-hover); }
+    .sticky-footer { position:fixed; left:0; right:0; bottom:0; background:var(--surface-strong); border-top:1px solid var(--border); padding:10px 20px; z-index:40; resize:vertical; overflow:hidden; min-height:84px; max-height:70vh; }
+    .sticky-footer-inner { max-width:1200px; margin:0 auto; }
+    .footer-header { display:flex; align-items:center; gap:10px; }
+    .footer-toggle { display:inline-flex; align-items:center; gap:8px; background:transparent; border:0; color:inherit; padding:0; }
+    .footer-toggle:hover { background:transparent; }
+    .footer-status-wrap { flex:0 0 auto; }
+    .footer-log-wrap { flex:1 1 auto; min-width:0; }
+    .footer-controls { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; }
+    .footer-level-pills { display:inline-flex; align-items:center; margin-left:auto; flex-wrap:wrap; overflow:hidden; border:1px solid var(--border); border-radius:999px; }
+    .footer-pill { border:0; border-right:1px solid var(--border); padding:4px 10px; background:transparent; color:var(--muted); cursor:pointer; border-radius:0; }
+    .footer-pill:last-child { border-right:0; }
+    .footer-pill.active { background:var(--button-bg); color:var(--button-fg); }
+    .footer-chevron { display:inline-block; width:1em; transition:transform .15s ease; }
+    .footer-chevron.open { transform:rotate(90deg); }
+    .footer-log { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); max-height:180px; overflow:auto; }
+    .footer-log-item { display:flex; gap:8px; margin:0 0 6px; }
+    .footer-log-time { flex:0 0 auto; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <header id="sharedHeader"></header>
+  <main class="page-content">
+    <div class="panel">
+      <div class="row" style="justify-content:space-between; align-items:center;">
+        <div class="row">
+          <span id="status" class="status status-idle" title="Starting..."><span class="status-dot"></span></span>
+        </div>
+        <a class="button" id="backToIndex" href="./">Back to repo view</a>
+      </div>
+    </div>
+    <div id="view"></div>
+  </main>
+  <footer id="pageFooter"></footer>
+
+  <script type="module">
+    import { createSharedHeader } from '../shared/page-header.mjs';
+    import { createLoggerFooter } from '../shared/logger-footer.js';
+    import { remoteTagNames } from '../shared/git-refs.mjs';
+    import { createGitProgressReporter } from '../shared/git-progress.mjs';
+    import { resolveHref } from '../shared/page-path.js';
+    import git from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/+esm';
+    import http from 'https://cdn.jsdelivr.net/npm/isomorphic-git@1.25.0/http/web/+esm';
+    import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
+
+    const fs = new LightningFS('git-viewer');
+    const footer = createLoggerFooter(document.getElementById('pageFooter'), { title: 'Logger', initialState: 'idle', initialTitle: 'starting...' });
+    const statusEl = document.getElementById('status');
+    const viewEl = document.getElementById('view');
+    const repos = [
+      { name:'krackpot-rs', url:'https://github.com/RandyMcMillan/krackpot-rs.git', dir:'/repos/krackpot-rs' },
+    ];
+
+    createSharedHeader(document.getElementById('sharedHeader'), {
+      title: 'krackpot-rs',
+      logoHref: resolveHref('../', window.location.href),
+      iconHref: resolveHref('../shared/favicon.ico', window.location.href),
+      subtitleHtml: '',
+      navItems: [
+        { label: 'Demo', href: resolveHref('../', window.location.href) },
+        { label: 'Git viewer', href: resolveHref('./', window.location.href) },
+        { label: 'Blame', href: resolveHref('./blame.html', window.location.href), current: true },
+        { label: 'Krackpot', href: resolveHref('../krackpot/', window.location.href) },
+        { label: 'Source', href: resolveHref('../krackpot/source/', window.location.href), target: '_blank' },
+      ],
+    });
+
+    function escapeHtml(value) { return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'); }
+    function setStatus(text, state = 'idle') { statusEl.className = `status status-${state}`; statusEl.title = text; footer.log('git', text, 'trace', state); }
+    function getRouteContext() {
+      const params = new URLSearchParams(window.location.search);
+      const repoName = params.get('repo') || '';
+      return { repo: repos.find((entry) => entry.name === repoName) || null, repoName: repoName || null, branch: params.get('branch') || '', tag: params.get('tag') || '', commit: params.get('commit') || '', path: params.get('path') || '' };
+    }
+    function repoCodeHref(repo, route = {}) { const search = new URLSearchParams(); search.set('repo', repo.name); if (route.branch) search.set('branch', route.branch); if (route.tag) search.set('tag', route.tag); if (route.commit) search.set('commit', route.commit); return resolveHref(`./?${search.toString()}`); }
+    function repoCommitsHref(repo, route = {}) { const search = new URLSearchParams(); search.set('repo', repo.name); search.set('view', 'commits'); if (route.branch) search.set('branch', route.branch); if (route.tag) search.set('tag', route.tag); return resolveHref(`./?${search.toString()}`); }
+    function repoCommitHref(repo, route = {}) { const search = new URLSearchParams(); search.set('repo', repo.name); search.set('view', 'commit'); if (route.branch) search.set('branch', route.branch); if (route.tag) search.set('tag', route.tag); if (route.commit) search.set('commit', route.commit); return resolveHref(`./?${search.toString()}`); }
+    function repoBlameHref(repo, route = {}, commit = null) { const search = new URLSearchParams(); search.set('repo', repo.name); if (route.branch) search.set('branch', route.branch); if (route.tag) search.set('tag', route.tag); if (commit) search.set('commit', commit); if (route.path) search.set('path', route.path); return resolveHref(`./blame.html?${search.toString()}`); }
+    function buildSelectOptions(items, selectedValue, placeholder) { const options = items.length ? items.map((item) => `<option value="${item}" ${item === selectedValue ? 'selected' : ''}>${item}</option>`).join('') : '<option value="">none</option>'; return `<option value="">${placeholder}</option>${options}`; }
+    function defaultRefForRefs(branches, tags) { if (branches.includes('main')) return 'main'; if (branches.includes('master')) return 'master'; if (branches[0]) return branches[0]; if (tags[0]) return tags[0]; return 'HEAD'; }
+    function resolveRefSelection(branches, tags, route) { if (route.branch) return route.branch; if (route.tag) return route.tag; return defaultRefForRefs(branches, tags); }
+    function createCommitSummary(commit) { const message = commit?.commit?.message || 'n/a'; const summary = message.split('\n')[0] || 'n/a'; const author = commit?.commit?.author?.name || 'unknown'; const timestamp = Number(commit?.commit?.author?.timestamp); const date = Number.isFinite(timestamp) ? new Date(timestamp * 1000).toLocaleString() : 'n/a'; return { oid: commit?.oid || 'n/a', summary, author, date, message, parents: Array.isArray(commit?.commit?.parent) ? commit.commit.parent : [] }; }
+    async function pathExists(path) { try { await fs.promises.stat(path); return true; } catch { return false; } }
+    async function ensureDir(path) { try { await fs.promises.mkdir(path, { recursive: true }); } catch (e) { if (e?.code !== 'EEXIST') throw e; } }
+    function remoteProbeUrl(repo) { return `${new URL(repo.url).origin}/favicon.ico`; }
+    async function probeRemoteHost(repo) { const controller = new AbortController(); const timeout = window.setTimeout(() => controller.abort(), 8000); try { await fetch(remoteProbeUrl(repo), { method:'GET', mode:'no-cors', cache:'no-store', signal:controller.signal }); return true; } catch { return false; } finally { window.clearTimeout(timeout); } }
+    function progressContextLabel(route) { if (route?.branch) return `branch ${route.branch}`; if (route?.tag) return `tag ${route.tag}`; return ''; }
+    const reporters = new Map();
+    function getGitProgressReporter(repo, operation, route) { const context = progressContextLabel(route); const key = `${repo.name}:${operation}:${context}`; if (!reporters.has(key)) reporters.set(key, createGitProgressReporter(repo.name, operation, context)); return reporters.get(key); }
+    function splitLines(text) { return String(text || '').replace(/\r\n/g, '\n').split('\n'); }
+    function diffLineAssignments(beforeLines, afterLines, beforeAssignments, currentCommit) { const rows = Array.from({ length: beforeLines.length + 1 }, () => Array(afterLines.length + 1).fill(0)); for (let i = beforeLines.length - 1; i >= 0; i -= 1) { for (let j = afterLines.length - 1; j >= 0; j -= 1) { rows[i][j] = beforeLines[i] === afterLines[j] ? rows[i + 1][j + 1] + 1 : Math.max(rows[i + 1][j], rows[i][j + 1]); } } const nextAssignments = []; let i = 0; let j = 0; while (i < beforeLines.length && j < afterLines.length) { if (beforeLines[i] === afterLines[j]) { nextAssignments.push(beforeAssignments[i]); i += 1; j += 1; } else if (rows[i + 1][j] >= rows[i][j + 1]) { i += 1; } else { nextAssignments.push(currentCommit); j += 1; } } while (j < afterLines.length) { nextAssignments.push(currentCommit); j += 1; } return nextAssignments; }
+    function decodeBlob(bytes) { return bytes ? new TextDecoder('utf-8').decode(bytes) : ''; }
+    function isBinaryBytes(bytes) { return bytes && Array.from(bytes).includes(0); }
+    async function buildFileBlame(repo, ref, filepath) {
+      if (!ref || !filepath) return null;
+      const history = await git.log({ fs, dir: repo.dir, ref, filepath, depth: 40 }).catch(() => []);
+      if (!history.length) return { path: filepath, ref, lines: [], missing: true };
+      const versions = [];
+      for (const entry of [...history].reverse()) {
+        const blob = await git.readBlob({ fs, dir: repo.dir, oid: entry.oid, filepath }).catch(() => null);
+        if (!blob?.blob) continue;
+        if (isBinaryBytes(blob.blob)) return { path: filepath, ref, binary: true, lines: [] };
+        versions.push({ commit: createCommitSummary(entry), text: decodeBlob(blob.blob) });
+      }
+      if (!versions.length) return { path: filepath, ref, lines: [], missing: true };
+      let currentLines = splitLines(versions[0].text);
+      let currentAssignments = currentLines.map(() => versions[0].commit);
+      for (const version of versions.slice(1)) { const nextLines = splitLines(version.text); currentAssignments = diffLineAssignments(currentLines, nextLines, currentAssignments, version.commit); currentLines = nextLines; }
+      return { path: filepath, ref, historyCount: history.length, lines: currentLines.map((text, index) => ({ number: index + 1, text, commit: currentAssignments[index] || versions[versions.length - 1].commit })) };
+    }
+    async function fetchRepoRefs(repo, route = null, onProgress = null) { const selection = route?.branch ? { ref: route.branch, singleBranch: true } : {}; await git.fetch({ fs, http, dir: repo.dir, corsProxy:'https://cors.isomorphic-git.org', url: repo.url, all:true, tags:true, force:true, prune:true, depth: route ? 12 : undefined, onProgress, ...selection }); }
+    async function ensureRepo(repo, route = null) { try { await ensureDir('/repos'); const exists = await pathExists(repo.dir); if (!exists) { setStatus(`${repo.name} cloning...`, 'checking'); await ensureDir(repo.dir); await git.clone({ fs, http, dir:repo.dir, corsProxy:'https://cors.isomorphic-git.org', url:repo.url, singleBranch:true, depth: route ? 12 : 1, onProgress: (progress) => { const msg = getGitProgressReporter(repo, 'clone', route)(progress); if (msg) footer.log('git', msg, 'trace'); } }); } setStatus(`${repo.name} fetching refs...`, 'checking'); await fetchRepoRefs(repo, route, (progress) => { const msg = getGitProgressReporter(repo, 'fetch', route)(progress); if (msg) footer.log('git', msg, 'trace'); }).catch(() => {}); } catch (e) { setStatus(`prepare failed: ${e.message}`, 'unavailable'); throw e; } }
+    async function readFileData(repo, route) { const localBranches = await git.listBranches({ fs, dir: repo.dir }).catch(() => []); const remoteBranches = await git.listBranches({ fs, dir: repo.dir, remote:'origin' }).catch(() => []); const branches = [...new Set([...localBranches, ...remoteBranches])].sort((a, b) => a.localeCompare(b)); const serverRefs = await git.listServerRefs({ fs, http, corsProxy:'https://cors.isomorphic-git.org', url: repo.url }).catch(() => []); const tags = [...new Set([...(await git.listTags({ fs, dir: repo.dir }).catch(() => [])), ...remoteTagNames(serverRefs)])].sort((a, b) => a.localeCompare(b)); const ref = resolveRefSelection(branches, tags, route); const selectedRef = route.commit || ref; const fileView = await buildFileBlame(repo, selectedRef, route.path).catch(() => null); const currentCommit = route.commit ? await git.readCommit({ fs, dir: repo.dir, oid: route.commit }).catch(() => null) : null; return { branches, tags, ref, selectedRef, currentCommit: currentCommit ? createCommitSummary({ oid: currentCommit.oid, commit: currentCommit.commit }) : null, fileView }; }
+    function renderSplitView(repo, route, fileView) { if (!fileView) return '<div class="detail-empty muted">Select a file from the repo view to open blame.</div>'; if (fileView.binary) return `<div class="detail-empty muted"><div class="muted small">Blame</div><div style="margin-top:8px;">${escapeHtml(fileView.path)} is binary and cannot be shown.</div></div>`; if (fileView.missing || !fileView.lines.length) return `<div class="detail-empty muted"><div class="muted small">Blame</div><div style="margin-top:8px;">No content available for ${escapeHtml(fileView.path)}</div></div>`; return `<div class="blame-shell"><div class="blame-head"><div>Commit</div><div>Line</div><div>Time</div><div>Content</div></div><div>${fileView.lines.map((line) => { const hash = line.commit?.oid ? line.commit.oid.slice(0, 12) : 'n/a'; const fullOid = line.commit?.oid || ''; const href = fullOid ? repoBlameHref(repo, route, fullOid) : null; const hashCell = href ? `<a class="blame-hash mono" href="${href}" title="Open blame at ${escapeHtml(hash)}">${escapeHtml(hash)}</a>` : `<div class="blame-hash mono">${escapeHtml(hash)}</div>`; const title = `${line.commit?.author || 'n/a'} · ${line.commit?.date || 'n/a'}`; return `<div class="blame-row" title="${escapeHtml(title)}"><div>${hashCell}</div><div class="blame-lno mono">${line.number}</div><div class="blame-time">${escapeHtml(line.commit?.date || 'n/a')}</div><div class="blame-text">${escapeHtml(line.text || ' ')}</div></div>`; }).join('')}</div></div>`; }
+    function renderRepoPicker() { viewEl.innerHTML = `<div class="repo-hero"><div class="repo-title-row"><div class="repo-title"><h2>Select a repository</h2><div class="small muted">Open a file from the repo page to use blame view.</div></div></div><div class="panel" style="margin-top:14px;"><div class="row">${repos.map((repo) => `<a class="button" href="${repoCodeHref(repo)}">${escapeHtml(repo.name)}</a>`).join('')}</div></div></div>`; }
+    function renderPage(repo, data, route) { const selectedRef = route.commit || data.selectedRef || data.ref || 'n/a'; const branchSelected = route.branch && data.branches.includes(route.branch) ? route.branch : ''; const tagSelected = route.tag && data.tags.includes(route.tag) ? route.tag : ''; const selectedPath = route.path || 'n/a'; viewEl.innerHTML = `<div class="repo-hero"><div class="repo-breadcrumbs"><a href="./">repos</a><span>/</span><a href="${repoCodeHref(repo, route)}">${escapeHtml(repo.name)}</a><span>/</span><span class="mono">${escapeHtml(selectedPath)}</span></div><div class="repo-title-row"><div class="repo-title"><div class="repo-meta"><h2>${escapeHtml(repo.name)}</h2><span class="pill mono">${escapeHtml(selectedRef.slice(0, 12))}</span></div><div class="small muted">${escapeHtml(route.path || 'Select a file to inspect')}</div><div class="blob-meta"><span class="pill">Branch: <span class="mono">${escapeHtml(route.branch || data.ref || 'n/a')}</span></span><span class="pill">Tag: <span class="mono">${escapeHtml(route.tag || 'n/a')}</span></span><span class="pill">History: ${data.fileView?.historyCount || 0}</span></div></div><div class="row" style="justify-content:flex-end;"><a class="button" href="${repoCodeHref(repo, route)}">Open code view</a><a class="button" href="${repoCommitsHref(repo, route)}">Commits</a>${route.commit ? `<a class="button" href="${repoCommitHref(repo, route)}">Commit</a>` : ''}<a class="button" href="${repo.url}" target="_blank" rel="noreferrer noopener">Open upstream</a></div></div><div class="repo-tabs" role="tablist" aria-label="Repository sections"><a class="repo-tab" href="${repoCodeHref(repo, route)}">Code</a><a class="repo-tab" href="${repoCommitsHref(repo, route)}">Commits</a><a class="repo-tab${route.commit ? ' active' : ''}" href="${repoCommitHref(repo, route)}">Commit</a></div></div><div class="blob-shell"><div class="blob-toolbar"><div><div class="small muted">File</div><div class="mono" style="margin-top:4px;">${escapeHtml(selectedPath)}</div></div><div class="repo-toolbar"><select class="repo-select" data-branch-select>${buildSelectOptions(data.branches, branchSelected, 'Switch branch')}</select><select class="repo-select" data-tag-select>${buildSelectOptions(data.tags, tagSelected, 'Switch tag')}</select></div></div><div class="repo-sidebar-card" style="border:0; border-radius:0; background:transparent;"><div style="margin-top:0;">${renderSplitView(repo, route, data.fileView)}</div></div></div>`; }
+    async function refresh() { const route = getRouteContext(); if (!route.repo) { setStatus('select a repository', 'idle'); renderRepoPicker(); return; } try { setStatus(`loading ${route.repo.name}...`, 'checking'); const probe = probeRemoteHost(route.repo).catch(() => false); await ensureRepo(route.repo, route); const data = await readFileData(route.repo, route); renderPage(route.repo, data, route); setStatus('ready', (await probe) ? 'available' : 'available'); } catch (e) { setStatus(`unavailable: ${e.message}`, 'unavailable'); viewEl.innerHTML = `<div class="detail-empty muted">${escapeHtml(e.message)}</div>`; } }
+    viewEl.addEventListener('change', async (event) => { const target = event.target; if (!(target instanceof HTMLSelectElement)) return; const route = getRouteContext(); const next = { repo: route.repo, repoName: route.repoName, branch: route.branch, tag: route.tag, commit: route.commit, path: route.path }; if (target.matches('[data-branch-select]')) { next.branch = target.value || null; next.tag = null; } if (target.matches('[data-tag-select]')) { next.tag = target.value || null; next.branch = null; } const search = new URLSearchParams(); search.set('repo', route.repo.name); if (next.branch) search.set('branch', next.branch); if (next.tag) search.set('tag', next.tag); if (next.commit) search.set('commit', next.commit); if (next.path) search.set('path', next.path); window.history.replaceState({}, '', `./blame.html?${search.toString()}`); await refresh(); });
+    refresh();
+  </script>
+</body>
+</html>
