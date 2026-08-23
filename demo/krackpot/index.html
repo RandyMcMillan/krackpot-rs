@@ -207,6 +207,20 @@
           <p class="small muted">On a hit, the signed transaction is built locally and submitted through a private channel.</p>
         </section>
 
+        <section class="panel" id="payout-transaction-panel" hidden>
+          <div class="row space-between">
+            <h2 style="margin:0;">Payout transaction</h2>
+            <button id="copy-payout-transaction" type="button">Copy hex</button>
+          </div>
+          <p class="small muted" style="margin-top:8px;">This is the signed transaction the app built for the hit.</p>
+          <div class="metric" style="margin-top:10px;">
+            <span class="label">TXID</span>
+            <span class="val mono" id="payout-txid" style="font-size:14px; word-break:break-all;">—</span>
+          </div>
+          <label class="field-label" for="payout-txhex" style="margin-top:12px;">SIGNED HEX</label>
+          <textarea id="payout-txhex" class="mono" rows="6" readonly style="width:100%; resize:vertical;"></textarea>
+        </section>
+
         <section class="panel">
           <div class="row">
             <button id="start-search" type="button" aria-describedby="start-hint" disabled>Start cracking</button>
