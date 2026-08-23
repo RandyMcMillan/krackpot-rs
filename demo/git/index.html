@@ -161,7 +161,32 @@
   .footer-log { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); max-height:180px; overflow:auto; }
   .footer-log-item { display:flex; gap:8px; margin:0 0 6px; }
   .footer-log-time { flex:0 0 auto; color:var(--muted); }
-  @media (max-width: 900px) { .grid, .detail-grid { grid-template-columns:1fr; } }
+  @media (max-width: 1100px) {
+    .page-content { max-width: 100%; }
+    .header-container { flex-direction:column; align-items:flex-start; padding:1rem 1.25rem; }
+    .repo-layout { grid-template-columns:1fr; }
+    .repo-files-header, .repo-files-row { grid-template-columns: minmax(0, 1fr) 100px; }
+    .repo-title-row, .repo-toolbar, .actions { justify-content:flex-start; }
+    .repo-select { min-width:0; flex:1 1 240px; }
+  }
+  @media (max-width: 900px) {
+    .page-content { margin: 1.25rem auto; padding: 0 1rem; }
+    .grid, .detail-grid { grid-template-columns:1fr; }
+    .header-container { padding:1rem; }
+    .repo-files-header, .repo-files-row { grid-template-columns: minmax(0, 1fr) 88px; padding:10px 12px; }
+    .repo-tabs { gap:2px; }
+    .repo-tab { padding:10px 12px 9px; }
+  }
+  @media (max-width: 640px) {
+    .header-container { gap:.5rem; }
+    .nav-links { gap:.75rem; }
+    .panel, .repo-sidebar-card, .repo-hero { padding:12px; }
+    .row { gap:8px; }
+    button, input, select { width:100%; }
+    .repo-files-header, .repo-files-row { grid-template-columns:1fr; }
+    .repo-files-row { gap:6px; }
+    .repo-files-path { flex-wrap:wrap; }
+  }
 </style>
 </head>
 <body>
