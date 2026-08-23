@@ -36,9 +36,9 @@ const footer = createLoggerFooter($("pageFooter"), {
   title: "Logger",
   initialState: "idle",
   initialTitle: "starting...",
-  initialLevel: "debug",
+  initialLevel: "trace",
 });
-footer.setLevel("debug");
+footer.setLevel("trace");
 const logFooter = (level, text, state = null) => footer.log("krackpot", text, level, state);
 const logP2p = (level, text, state = null) => footer.log("krackpot-p2p", text, level, state);
 const setGpuInfo = (text) => { $("gpu-info").textContent = text; };
@@ -1132,8 +1132,9 @@ const main = async () => {
     try {
       const { node } = await createSharedLibp2pStack({
         onLog: (level, text, state) => logP2p(level, text, state),
-        onPeer: ({ kind, peer }) => {
+        onPeer: ({ kind, peer, detail }) => {
           logP2p("debug", `${kind}: ${peer}`, kind === "connect" ? "available" : "checking");
+          logP2p("trace", `${kind} detail: ${detail ? JSON.stringify(detail) : "none"}`, kind === "connect" ? "available" : "checking");
         },
       });
       krackpotP2pNode = node;
