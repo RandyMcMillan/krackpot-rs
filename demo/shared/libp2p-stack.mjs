@@ -20,6 +20,15 @@ export const DEFAULT_BOOTSTRAP_PEERS = [
 ];
 
 const peerLabel = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || "peer";
+const describePeerDetail = (detail) => {
+  if (!detail || typeof detail !== "object") return "no detail";
+  const fields = [];
+  if (detail.peerId?.toString?.()) fields.push(`peerId=${detail.peerId.toString()}`);
+  if (detail.remotePeer?.toString?.()) fields.push(`remotePeer=${detail.remotePeer.toString()}`);
+  if (detail.connection?.stat?.direction) fields.push(`direction=${detail.connection.stat.direction}`);
+  if (detail.connection?.remoteAddr?.toString?.()) fields.push(`remoteAddr=${detail.connection.remoteAddr.toString()}`);
+  return fields.length ? fields.join(" ") : `keys=${Object.keys(detail).join(",") || "none"}`;
+};
 
 const emitLog = (onLog, level, text, state = "checking") => {
   onLog?.(level, text, state);
@@ -30,8 +39,10 @@ const emitLog = (onLog, level, text, state = "checking") => {
 
 const emitPeerEvent = (onPeer, onLog, kind, event, level = "debug", state = "checking") => {
   const peer = peerLabel(event);
-  onPeer?.({ kind, peer, detail: event?.detail || null });
+  const detail = event?.detail || null;
+  onPeer?.({ kind, peer, detail });
   emitLog(onLog, level, `peer ${kind}: ${peer}`, state);
+  emitLog(onLog, "trace", `peer ${kind} detail: ${describePeerDetail(detail)}`, state);
 };
 
 export async function createSharedLibp2pStack({
@@ -44,6 +55,8 @@ export async function createSharedLibp2pStack({
   emitLog(onLog, "info", `bootstrapping with ${peers.length} peer${peers.length === 1 ? "" : "s"}`, "checking");
   emitLog(onLog, "debug", `bootstrap peers configured: ${peers.length}`, "checking");
   emitLog(onLog, "trace", "shared libp2p stack configuring transports and services", "checking");
+  emitLog(onLog, "trace", `transports: webSockets, webRTC, webRTCDirect, circuitRelayTransport`, "checking");
+  emitLog(onLog, "trace", `services: identify, autoNAT, dcutr, pubsub`, "checking");
 
   const node = await createLibp2p({
     transports: [
@@ -87,6 +100,7 @@ export async function createSharedLibp2pStack({
 
   await node.start();
   emitLog(onLog, "trace", "shared libp2p node started", "available");
+  emitLog(onLog, "trace", `listen addrs: ${node.getMultiaddrs?.().map?.((m) => m.toString()).join(" | ") || "n/a"}`, "available");
   onStatus?.("started", node.peerId.toString());
   emitLog(onLog, "info", `node started: ${node.peerId.toString()}`, "available");
 
