@@ -23,6 +23,7 @@ wasm-bindgen = { version = "0.2", optional = true }
 getrandom = { version = "0.2", features = ["js"], optional = true }
 serde-wasm-bindgen = { version = "0.6", optional = true }
 serde_json = { version = "1", optional = true }
+bitcoin = "0.32"
 
 [dev-dependencies]
 nostr-relay-builder = "0.44.0"
