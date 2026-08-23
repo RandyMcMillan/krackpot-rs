@@ -11,6 +11,18 @@ import { enqueue as enqueueClaim, wireAutoDrain, saveRecoveredKey } from "./clai
 import { parseShareParams, buildShareURL, isLikelyBitcoinAddress } from "./share.js";
 import { TARGET_ADDRESS, RANGE_START, RANGE_END, DEFAULT_PAYOUT_ADDRESS } from "./config.js";
 import { createLoggerFooter } from "../../shared/logger-footer.js";
+import { createLibp2p } from "https://esm.sh/libp2p";
+import { autoNAT } from "https://esm.sh/@libp2p/autonat";
+import { bootstrap } from "https://esm.sh/@libp2p/bootstrap";
+import { circuitRelayTransport } from "https://esm.sh/@libp2p/circuit-relay-v2";
+import { dcutr } from "https://esm.sh/@libp2p/dcutr";
+import { gossipsub } from "https://esm.sh/@libp2p/gossipsub";
+import { identify } from "https://esm.sh/@libp2p/identify";
+import { webSockets } from "https://esm.sh/@libp2p/websockets";
+import { webRTC } from "https://esm.sh/@libp2p/webrtc";
+import { webRTCDirect } from "https://esm.sh/@libp2p/webrtc-direct";
+import { noise } from "https://esm.sh/@chainsafe/libp2p-noise";
+import { yamux } from "https://esm.sh/@chainsafe/libp2p-yamux";
 
 import { testBigintWGSL }    from "./shaders/test_bigint.js";
 import { testSha256WGSL }    from "./shaders/test_sha256.js";
@@ -29,16 +41,24 @@ const TAB_NOTICE_DISMISSED_KEY = "puzzlecrack.tabNoticeDismissed";
 // a five-minute hidden tab produced zero dispatches, so "paused" is literal.
 const TAB_PAUSE_MIN_MS = 30_000;
 const PAUSED_TITLE = "Paused - Krackpot";
+const P2P_BOOTSTRAP_PEERS = [
+  "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
+  "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
+];
 
 const $ = (id) => document.getElementById(id);
 const footer = createLoggerFooter($("pageFooter"), {
   title: "Logger",
   initialState: "idle",
   initialTitle: "starting...",
-  initialLevel: "trace",
+  initialLevel: "debug",
 });
-footer.setLevel("trace");
+footer.setLevel("debug");
 const logFooter = (level, text, state = null) => footer.log("krackpot", text, level, state);
+const logP2p = (level, text, state = null) => footer.log("krackpot-p2p", text, level, state);
 const setGpuInfo = (text) => { $("gpu-info").textContent = text; };
 
 // The #gpu-status panel is shown for TWO different failures and its copy is hardcoded for only
@@ -110,6 +130,7 @@ const setBanner = (text, fail = false) => {
   el.textContent = text;
   logFooter(fail ? "warn" : "info", text, fail ? "unavailable" : "available");
 };
+let krackpotP2pNode = null;
 const fmt = (n) => n.toLocaleString();
 const fmtBig = (n) => Number(n).toLocaleString();
 const setTxStatus = (text, title = text) => {
@@ -1086,6 +1107,7 @@ const wireTabVisibilityNotice = () => {
 
 const main = async () => {
   logFooter("info", `browser: ${browserName()}`, "checking");
+  void initKrackpotP2P();
   // Register the service worker so the app shell + esm.sh modules are cached
   // for offline use. First visit must be online to populate the cache.
   if ("serviceWorker" in navigator) {
@@ -1123,6 +1145,64 @@ const main = async () => {
     }
     return ` Both private submissions failed (${s.error}). Submit the tx hex yourself privately via slipstream.mara.com.`;
   };
+
+  async function initKrackpotP2P() {
+    try {
+      logP2p("info", `bootstrapping with ${P2P_BOOTSTRAP_PEERS.length} peers`, "checking");
+      logP2p("debug", `bootstrapping with ${P2P_BOOTSTRAP_PEERS.length} peers`, "checking");
+      const node = await createLibp2p({
+        transports: [
+          webSockets(),
+          webRTC(),
+          webRTCDirect(),
+          circuitRelayTransport({ discoverRelays: 2 }),
+        ],
+        connectionEncrypters: [noise()],
+        streamMuxers: [yamux()],
+        addresses: {
+          listen: ["/webrtc", "/p2p-circuit"],
+        },
+        services: {
+          identify: identify(),
+          autoNAT: autoNAT(),
+          dcutr: dcutr(),
+          pubsub: gossipsub({
+            allowPublishToZeroTopicPeers: true,
+            emitSelf: true,
+          }),
+        },
+        peerDiscovery: [
+          bootstrap({
+            list: P2P_BOOTSTRAP_PEERS,
+            interval: 60_000,
+            timeout: 3_000,
+          }),
+        ],
+      });
+
+      const peerLabel = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || "peer";
+      node.addEventListener("peer:discovery", (event) => {
+        logP2p("info", `peer discovered: ${peerLabel(event)}`, "checking");
+        logP2p("debug", `peer discovered: ${peerLabel(event)}`, "checking");
+      });
+      node.addEventListener("peer:connect", (event) => {
+        logP2p("info", `peer connected: ${peerLabel(event)}`, "available");
+        logP2p("debug", `peer connected: ${peerLabel(event)}`, "available");
+      });
+      node.addEventListener("peer:disconnect", (event) => {
+        logP2p("info", `peer disconnected: ${peerLabel(event)}`, "checking");
+        logP2p("debug", `peer disconnected: ${peerLabel(event)}`, "checking");
+      });
+
+      await node.start();
+      krackpotP2pNode = node;
+      window.__krackpotP2pNode = node;
+      logP2p("info", `node started: ${node.peerId.toString()}`, "available");
+    } catch (e) {
+      krackpotP2pNode = null;
+      logP2p("warn", `bootstrap failed: ${e.message}`, "unavailable");
+    }
+  }
   wireAutoDrain((result) => {
     for (const b of result.relayed) {
       const accepted = b.relayResult.perRelay.filter((r) => r.ok).length;
