@@ -142,6 +142,7 @@ export const createReplicatedArchive = async ({
       emitStatus(`published ${type}`, true);
     } catch (e) {
       emitStatus(`p2p publish failed: ${e.message}`, false);
+      emitStatus(`p2p publish payload keys: ${Object.keys(payload || {}).join(",") || "none"}`, false);
     } finally {
       publishing = false;
     }
@@ -200,8 +201,8 @@ export const createReplicatedArchive = async ({
         emitStatus(`received remote ${record?.type || "record"} ${record?.id || "unknown"}`, true);
         emitStatus(`remote payload keys: ${Object.keys(record?.payload || {}).join(",") || "none"}`, true);
         await applyRecord(record, { local: false });
-      } catch {
-        emitStatus("ignored malformed remote record", false);
+      } catch (e) {
+        emitStatus(`ignored malformed remote record: ${e.message}`, false);
       }
     });
   };
@@ -219,8 +220,8 @@ export const createReplicatedArchive = async ({
       emitStatus(`unsubscribing from ${topic}`, true);
       await pubsub?.unsubscribe?.(topic);
       emitStatus("archive stopped", true);
-    } catch {
-      // best-effort
+    } catch (e) {
+      emitStatus(`archive stop failed: ${e.message}`, false);
     }
   };
 
