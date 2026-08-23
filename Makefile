@@ -50,6 +50,7 @@ wasm:
 site: wasm
 	mkdir -p site
 	cp demo/index.html site/index.html
+	cp demo/shared/favicon.ico site/favicon.ico
 	mkdir -p site/shared
 	cp demo/shared/page.css site/shared/
 	cp demo/shared/*.js demo/shared/*.mjs site/shared/

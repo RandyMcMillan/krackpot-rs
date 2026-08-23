@@ -1,7 +1,10 @@
 mod dag;
 mod error;
 mod event;
+mod assets;
 
+pub use assets::{ICON_CIRCLE_BITCOIN_SVG, ICON_CIRCLE_WHITE_SVG};
+pub use assets::FAVICON_ICO;
 pub use dag::{Dag, InsertResult};
 pub use error::DagError;
 pub use event::{create_ack_event, parents_of, DAG_EVENT_KIND};
@@ -80,4 +83,3 @@ mod wasm {
         }
     }
 }
-

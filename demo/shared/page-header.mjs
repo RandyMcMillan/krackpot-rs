@@ -26,12 +26,12 @@ export function createSharedHeader(root, options = {}) {
   root.classList.add('sticky-header');
   root.innerHTML = `
     <div class="header-container">
-      <div>
-        <a class="logo" href="${escapeHtml(logoHref)}">${escapeHtml(title)}</a>
-        ${subtitleHtml ? `<div class="muted header-subtitle">${subtitleHtml}</div>` : ''}
-      </div>
-      ${navItems.length ? `
-        <nav aria-label="Primary navigation">
+      <nav class="header-nav" aria-label="Primary navigation">
+        <div class="header-brand">
+          <a href="${escapeHtml(logoHref)}"><img class="brand-icon" src="/favicon.ico" alt="" aria-hidden="true" /><span class="logo-text">${escapeHtml(title)}</span></a>
+          ${subtitleHtml ? `<div class="muted header-subtitle">${subtitleHtml}</div>` : ''}
+        </div>
+        ${navItems.length ? `
           <ul class="nav-links">
             ${navItems
               .map((item) => {
@@ -42,8 +42,8 @@ export function createSharedHeader(root, options = {}) {
               })
               .join('')}
           </ul>
-        </nav>
-      ` : ''}
+        ` : ''}
+      </nav>
     </div>
   `;
 

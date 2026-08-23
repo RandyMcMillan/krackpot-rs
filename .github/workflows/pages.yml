@@ -44,6 +44,7 @@ jobs:
       - name: Copy demo into site
         run: |
           cp demo/index.html site/index.html
+          cp demo/shared/favicon.ico site/favicon.ico
           mkdir -p site/shared
           cp demo/shared/page.css site/shared/
           mkdir -p site/git

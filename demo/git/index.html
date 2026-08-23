@@ -212,9 +212,9 @@
     import { resolveHref } from '../shared/page-path.js';
 
     createSharedHeader(document.getElementById('sharedHeader'), {
-      title: 'nostr-dag Git Viewer',
+      title: 'nostr-dag',
       logoHref: resolveHref('../', window.location.href),
-      subtitleHtml: 'Browse cloned repositories in the browser. Endpoint: <span class="mono">/git/</span>',
+      subtitleHtml: '',
       navItems: [
         { label: 'Demo', href: resolveHref('../', window.location.href) },
         { label: 'Git viewer', href: resolveHref('./', window.location.href), current: true },
