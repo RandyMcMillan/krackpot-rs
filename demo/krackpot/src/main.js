@@ -10,6 +10,7 @@ import { PUZZLE_UTXOS } from "./puzzle-utxos.js";
 import { enqueue as enqueueClaim, wireAutoDrain, saveRecoveredKey } from "./claim-queue.js";
 import { parseShareParams, buildShareURL, isLikelyBitcoinAddress } from "./share.js";
 import { TARGET_ADDRESS, RANGE_START, RANGE_END, DEFAULT_PAYOUT_ADDRESS } from "./config.js";
+import { createLoggerFooter } from "../../shared/logger-footer.js";
 
 import { testBigintWGSL }    from "./shaders/test_bigint.js";
 import { testSha256WGSL }    from "./shaders/test_sha256.js";
@@ -30,6 +31,14 @@ const TAB_PAUSE_MIN_MS = 30_000;
 const PAUSED_TITLE = "Paused - Krackpot";
 
 const $ = (id) => document.getElementById(id);
+const footer = createLoggerFooter($("pageFooter"), {
+  title: "Logger",
+  initialState: "idle",
+  initialTitle: "starting...",
+  initialLevel: "trace",
+});
+footer.setLevel("trace");
+const logFooter = (level, text, state = null) => footer.log("krackpot", text, level, state);
 const setGpuInfo = (text) => { $("gpu-info").textContent = text; };
 
 // The #gpu-status panel is shown for TWO different failures and its copy is hardcoded for only
@@ -99,6 +108,7 @@ const setBanner = (text, fail = false) => {
   el.hidden = false;
   el.classList.toggle("fail", fail);
   el.textContent = text;
+  logFooter(fail ? "warn" : "info", text, fail ? "unavailable" : "available");
 };
 const fmt = (n) => n.toLocaleString();
 const fmtBig = (n) => Number(n).toLocaleString();
@@ -203,8 +213,11 @@ const MOCK_PAYOUT_TRANSACTION = {
   console.log("%cUnminified on purpose. No build step, no bundler: what you read here is what runs.", note);
   console.log("%cStart at src/main.js. The search kernel (secp256k1, SHA-256, RIPEMD-160) is src/shaders/search.js.", note);
   console.log("%cHow it works: https://krackpot.io/blog/how-it-works", note);
+  logFooter("info", "Krackpot UI loaded", "available");
+  logFooter("debug", `target: ${TARGET_ADDRESS}`, "available");
+  logFooter("debug", `range: ${RANGE_START} → ${RANGE_END}`, "available");
   console.groupEnd();
-})();
+  })();
 
 // Rebuild the always-visible, copy-ready share link from the current form
 // state. buildShareURL omits an invalid/empty `pay` on its own, so a partial
@@ -394,6 +407,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   // below (missing snapshot, build error, offline, submit failure) can lose the
   // tx and still be recovered from the key alone, so the key must outlive them.
   console.log("private key (hex): 0x" + hex);
+  logFooter("warn", "private key revealed in console", "available");
   const keySaved = saveRecoveredKey({ privHex: hex, address: addr });
   const keyNote = keySaved
     ? `The key is saved in this browser (localStorage "puzzlecrack.recoveredKeys") — copy it somewhere safe now.`
@@ -472,6 +486,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
       `HIT! priv=0x${hex} for ${addr}, but the automatic claim pipeline failed: ` +
       `${e.message}. It did not produce a usable signed transaction, so the prize is ` +
       `claimable from this key alone. ${manualClaimWarning} ${keyNote}`, true);
+    logFooter("warn", `claim build failed: ${e.message}`, "unavailable");
     console.error("claim build failed:", e);
     return;
   }
@@ -481,6 +496,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   // Surface the signed hexes too (the key was logged + persisted on entry).
   console.log("standard tx:", variants.standard.txid, variants.standard.hex);
   if (variants.shield) console.log("shield tx:", variants.shield.txid, variants.shield.hex);
+  logFooter("info", `standard tx ready: ${variants.standard.txid}`, "available");
   setTxStatus(`TX ${variants.standard.txid.slice(0, 16)}…`, variants.standard.hex);
   showPayoutTransaction(variants.standard.txid, variants.standard.hex, {
     title: "Payout transaction",
@@ -502,6 +518,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
       `developer when connectivity returns. Once you are back online you can also submit it ` +
       `yourself PRIVATELY via slipstream.mara.com. Do NOT paste this into a public explorer ` +
       `or node. ${keyNote}\n\nStandard tx hex (also saved in this browser):\n\n${variants.standard.hex}`, true);
+    logFooter("warn", `claim queued for relay: ${variants.standard.txid}`, "checking");
     return;
   }
 
@@ -533,6 +550,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
       `If it has not confirmed within a few hours, submit it yourself PRIVATELY via ` +
       `slipstream.mara.com — do NOT paste it into a public explorer or node, or it will be ` +
       `front-run and stolen. Standard tx hex:\n\n${variants.standard.hex}`);
+    logFooter("info", `claim submitted privately via ${pools.join(" and ")}`, "available");
   } else {
     // Tier 3: automatic path did not confirm — instruct manual private submission.
     setBanner(
@@ -541,6 +559,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
       `PRIVATELY via slipstream.mara.com — do NOT paste it into a public explorer or node, ` +
       `or it will be front-run and stolen. ${keyNote}\n\n` +
       `Standard tx hex:\n\n${variants.standard.hex}`, true);
+    logFooter("warn", `private submission did not confirm: ${tier1.error || tier1.reason || "unknown"}`, "unavailable");
   }
 
   try {
@@ -1066,14 +1085,17 @@ const wireTabVisibilityNotice = () => {
 };
 
 const main = async () => {
+  logFooter("info", `browser: ${browserName()}`, "checking");
   // Register the service worker so the app shell + esm.sh modules are cached
   // for offline use. First visit must be online to populate the cache.
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch((e) => console.warn("SW registration failed:", e));
+    logFooter("info", "service worker registration attempted", "checking");
     // Refresh the build badge once the SW is active (the cache exists by then).
     navigator.serviceWorker.ready.then(showBuildVersion).catch(() => {});
   }
   showBuildVersion();
+  logFooter("debug", `share address default: ${DEFAULT_PAYOUT_ADDRESS}`, "available");
 
   // Capture (and suppress) the browser's install prompt now, so it's ready if
   // the user reaches a successful search start. Must be registered early — the
