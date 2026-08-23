@@ -125,8 +125,8 @@ const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAdd
   if (title) titleEl.textContent = title;
   if (note) noteEl.textContent = note;
   txidEl.textContent = txid;
-  const user = userAddress || $("user-payout-address")?.value.trim() || MOCK_PAYOUT_TRANSACTION.userAddress;
-  const dev = devAddress || MOCK_PAYOUT_TRANSACTION.devAddress;
+  const user = userAddress || $("user-payout-address")?.value.trim() || DEFAULT_PAYOUT_ADDRESS;
+  const dev = devAddress || DEFAULT_PAYOUT_ADDRESS;
   userAddressEl.textContent = user;
   output0El.textContent = `6 BTC → ${user}`;
   devAddressEl.textContent = dev;
@@ -186,8 +186,6 @@ const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAdd
 
 const MOCK_PAYOUT_TRANSACTION = {
   txid: "0000000000000000000000000000000000000000000000000000000000000000",
-  userAddress: "bc1qq5y98nxyscu6x74z30ym44wwyz4usu95ryende",
-  devAddress: "bc1qq5y98nxyscu6x74z30ym44wwyz4usu95ryende",
   hex: "020000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff020046c32300000000160014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00e1f50500000000160014bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb00000000",
 };
 
@@ -439,7 +437,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
     // failure becomes the manual-claim banner below, which carries the key and the
     // do-not-broadcast warning. Generous, because this is the prize path.
     const CLAIM_IMPORT_DEADLINE_MS = 20000;
-    const [{ orchestrateClaim }, { DEV_ADDRESS }] = await Promise.race([
+    const [{ orchestrateClaim }] = await Promise.race([
       Promise.all([
         import("./claim-orchestrator.js"),
         import("./prize-claim.js"),
@@ -449,7 +447,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
           `claim libraries did not load after ${CLAIM_IMPORT_DEADLINE_MS / 1000}s`)),
         CLAIM_IMPORT_DEADLINE_MS)),
     ]);
-    const destination = fellBackToDev ? DEV_ADDRESS : userPayoutAddress;
+    const destination = fellBackToDev ? DEFAULT_PAYOUT_ADDRESS : userPayoutAddress;
     result = await orchestrateClaim({
       priv, privHex: hex, addr, destination, fellBackToDev, utxos,
       online: navigator.onLine,
@@ -488,7 +486,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
     title: "Payout transaction",
     note: "This is the signed transaction the app built for the hit.",
     userAddress: destination,
-    devAddress: DEV_ADDRESS,
+    devAddress: DEFAULT_PAYOUT_ADDRESS,
   });
 
   const payoutLine = fellBackToDev
@@ -1173,8 +1171,8 @@ const main = async () => {
     {
       title: "Mock payout transaction",
       note: "Raw Bitcoin transaction hex preview.",
-      userAddress: $("user-payout-address").value.trim() || MOCK_PAYOUT_TRANSACTION.userAddress,
-      devAddress: MOCK_PAYOUT_TRANSACTION.devAddress,
+      userAddress: $("user-payout-address").value.trim() || DEFAULT_PAYOUT_ADDRESS,
+      devAddress: DEFAULT_PAYOUT_ADDRESS,
       format: "hex",
     }
   );

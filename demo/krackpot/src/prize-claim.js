@@ -9,8 +9,8 @@
 
 import * as btc from "https://esm.sh/@scure/btc-signer@1.3.0";
 import { hex } from "https://esm.sh/@scure/base@1.1.5";
+import { DEFAULT_PAYOUT_ADDRESS } from "./config.js";
 
-export const DEV_ADDRESS         = "bc1qq5y98nxyscu6x74z30ym44wwyz4usu95ryende";
 export const USER_PAYOUT_SATS    = 600_000_000n;   // exactly 6 BTC to the cruncher
 export const DEV_DUST_LIMIT_SATS = 546n;           // standard P2WPKH dust threshold
 export const FEE_RATE_SAT_PER_VB = 69n;
@@ -74,7 +74,7 @@ export const buildSignedTx = ({ privBigInt, userAddress, utxos }) => {
   }
   tx.addOutputAddress(userAddress, userAmount);
   if (includeDev) {
-    tx.addOutputAddress(DEV_ADDRESS, devAmount);
+    tx.addOutputAddress(DEFAULT_PAYOUT_ADDRESS, devAmount);
   }
 
   const privBytes = bigIntToBytes32(privBigInt);
@@ -133,7 +133,7 @@ export const buildShieldTx = ({ privBigInt, userAddress, utxos, shieldAddress, s
     tx.addInput({ txid: u.txid, index: u.vout, nonWitnessUtxo: hex.decode(u.prevTxHex) });
   }
   tx.addOutputAddress(userAddress, userAmount);
-  if (includeDev) tx.addOutputAddress(DEV_ADDRESS, devAmount);
+  if (includeDev) tx.addOutputAddress(DEFAULT_PAYOUT_ADDRESS, devAmount);
   tx.addOutputAddress(shieldAddress, shieldFee);
 
   const privBytes = bigIntToBytes32(privBigInt);
