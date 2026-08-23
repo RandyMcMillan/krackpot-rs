@@ -548,6 +548,7 @@
     function loadBootstrapPeers() {
       const peers = new Set(DEFAULT_BOOTSTRAP_PEERS);
       try {
+        logDemo('trace', `load bootstrap peers start (defaults=${peers.size})`, 'checking');
         const params = new URL(window.location.href).searchParams;
         for (const value of params.getAll('bootstrap')) {
           for (const entry of value.split(/[,\n]/)) {
@@ -562,7 +563,9 @@
             if (trimmed) peers.add(trimmed);
           }
         }
-      } catch {
+        logDemo('debug', `load bootstrap peers done (${peers.size})`, 'checking');
+      } catch (e) {
+        logDemo('warn', `load bootstrap peers failed: ${e.message}`, 'unavailable');
         // Bootstrap peers are optional and best-effort.
       }
       return [...peers];
@@ -1458,8 +1461,10 @@
       if (result.status === 'fulfilled') {
         registry[name] = result.value[1];
         loaded += 1;
+        window.__sharedFooter?.log('deps', `loaded ${name}`, 'trace');
       } else {
         failed += 1;
+        window.__sharedFooter?.log('deps', `failed ${name}`, 'warn');
         console.warn(`Failed to load ${name}:`, result.reason);
       }
     }
@@ -1508,27 +1513,39 @@
     }
 
     function setGitStatus(text) {
+      logDemo('trace', `git: ${text}`, 'checking');
       window.__sharedFooter?.log('git', text, 'trace');
     }
 
     async function runGitWorkflow() {
       try {
+        logDemo('info', 'git workflow start', 'checking');
         setGitStatus('cloning...');
+        logDemo('debug', 'git clone isomorphic-git start', 'checking');
         await cloneRepo('https://github.com/isomorphic-git/isomorphic-git', dir);
+        logDemo('debug', 'git clone isomorphic-git done', 'available');
+        logDemo('trace', 'git fetch isomorphic-git tags', 'checking');
         await fetchAllTags('https://github.com/isomorphic-git/isomorphic-git', dir);
         setGitStatus('cloning krackpot-rs...');
+        logDemo('debug', 'git clone krackpot-rs start', 'checking');
         await cloneRepo('https://github.com/RandyMcMillan/krackpot-rs', krackpotDir);
+        logDemo('debug', 'git clone krackpot-rs done', 'available');
+        logDemo('trace', 'git fetch krackpot-rs tags', 'checking');
         await fetchAllTags('https://github.com/RandyMcMillan/krackpot-rs', krackpotDir);
 
         setGitStatus('reading history...');
         const commits = await git.log({ fs, dir });
+        logDemo('info', `git latest commit: ${commits[0]?.commit?.message || 'none'}`, 'available');
         console.log('Latest Commit:', commits[0].commit.message);
 
         setGitStatus('writing file...');
+        logDemo('trace', 'git write example.txt', 'checking');
         await fs.promises.writeFile(`${dir}/example.txt`, 'Hello World!');
 
         setGitStatus('committing...');
+        logDemo('trace', 'git add example.txt', 'checking');
         await git.add({ fs, dir, filepath: 'example.txt' });
+        logDemo('trace', 'git commit example.txt', 'checking');
         const sha = await git.commit({
           fs,
           dir,
@@ -1539,10 +1556,12 @@
           message: 'Add example.txt via browser',
         });
 
+        logDemo('info', `git commit done: ${sha}`, 'available');
         console.log('New Commit SHA:', sha);
         setGitStatus(`done: ${sha}`);
       } catch (e) {
         setGitStatus('unavailable');
+        logDemo('warn', `git workflow failed: ${e.message}`, 'unavailable');
         console.warn('git bootstrap failed:', e);
       }
     }
@@ -1602,22 +1621,27 @@
     }
 
     async function cacheDependency(url) {
+      logDemo('trace', `cache dependency start: ${url}`, 'checking');
       const response = await fetch(url, { mode: 'cors', cache: 'force-cache' });
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
       const text = await response.text();
       await depsFs.promises.writeFile(`${depsDir}/${safeFilename(url)}.mjs`, text);
+      logDemo('debug', `cache dependency done: ${url}`, 'available');
     }
 
     async function cacheDependencies() {
       try {
         await depsFs.promises.mkdir(depsDir, { recursive: true });
         setDepsStatus(`caching 0/${dependencyUrls.length}...`);
+        logDemo('info', `dependency cache start (${dependencyUrls.length})`, 'checking');
 
         let done = 0;
         for (const url of dependencyUrls) {
           try {
             await cacheDependency(url);
+            logDemo('trace', `dependency cached: ${url}`, 'available');
           } catch (e) {
+            logDemo('warn', `dependency cache failed: ${url} (${e.message})`, 'unavailable');
             console.warn('dependency cache failed:', url, e);
           } finally {
             done += 1;
@@ -1627,8 +1651,10 @@
         }
 
         setDepsStatus(`cached ${done}/${dependencyUrls.length}`);
+        logDemo('info', `dependency cache complete (${done}/${dependencyUrls.length})`, 'available');
       } catch (e) {
         setDepsStatus('unavailable');
+        logDemo('warn', `dependency cache bootstrap failed: ${e.message}`, 'unavailable');
         console.warn('dependency cache bootstrap failed:', e);
       }
     }
