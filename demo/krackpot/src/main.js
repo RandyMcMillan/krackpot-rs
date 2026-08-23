@@ -109,24 +109,68 @@ const setTxStatus = (text, title = text) => {
   if (label) label.textContent = text;
   el.title = title;
 };
-const showPayoutTransaction = (txid, hex, { title, note } = {}) => {
+const showPayoutTransaction = (txid, payload, { title, note, userAddress, devAddress, format = "hex" } = {}) => {
   const panel = $("payout-transaction-panel");
   const titleEl = $("payout-transaction-title");
   const noteEl = $("payout-transaction-note");
   const txidEl = $("payout-txid");
+  const userAddressEl = $("payout-user-address");
+  const devAddressEl = $("payout-dev-address");
+  const txLabelEl = document.querySelector('label[for="payout-txhex"]');
   const hexEl = $("payout-txhex");
   const copyBtn = $("copy-payout-transaction");
-  if (!panel || !titleEl || !noteEl || !txidEl || !hexEl || !copyBtn) return;
+  if (!panel || !titleEl || !noteEl || !txidEl || !userAddressEl || !devAddressEl || !txLabelEl || !hexEl || !copyBtn) return;
   if (title) titleEl.textContent = title;
   if (note) noteEl.textContent = note;
   txidEl.textContent = txid;
-  hexEl.value = hex;
+  userAddressEl.textContent = userAddress || $("user-payout-address")?.value.trim() || MOCK_PAYOUT_TRANSACTION.userAddress;
+  devAddressEl.textContent = devAddress || MOCK_PAYOUT_TRANSACTION.devAddress;
+  const text = format === "json"
+    ? JSON.stringify({
+        version: 2,
+        locktime: 0,
+        ins: [{
+          n: 0,
+          script: { asm: "", hex: "" },
+          sequence: 4294967295,
+          txid: "0000000000000000000000000000000000000000000000000000000000000000",
+          witness: [],
+        }],
+        outs: [
+          {
+            n: 0,
+            script: {
+              addresses: [userAddressEl.textContent],
+              asm: "OP_0 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              hex: "0014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            },
+            value: 600000000,
+          },
+          {
+            n: 1,
+            script: {
+              addresses: [devAddressEl.textContent],
+              asm: "OP_0 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              hex: "0014bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            },
+            value: 100000000,
+          },
+        ],
+        hash: txid,
+        txid,
+      }, null, 2)
+    : payload;
+  hexEl.value = text;
+  hexEl.rows = format === "json" ? 16 : 6;
+  hexEl.setAttribute("aria-label", format === "json" ? "Mock transaction JSON" : "Signed transaction hex");
+  txLabelEl.textContent = format === "json" ? "MOCK TX JSON" : "SIGNED HEX";
   panel.hidden = false;
+  copyBtn.textContent = format === "json" ? "Copy JSON" : "Copy hex";
   copyBtn.onclick = async () => {
     try {
-      await navigator.clipboard.writeText(hex);
+      await navigator.clipboard.writeText(text);
       copyBtn.textContent = "Copied";
-      setTimeout(() => { copyBtn.textContent = "Copy hex"; }, 1200);
+      setTimeout(() => { copyBtn.textContent = format === "json" ? "Copy JSON" : "Copy hex"; }, 1200);
     } catch {
       hexEl.focus();
       hexEl.select();
@@ -136,6 +180,8 @@ const showPayoutTransaction = (txid, hex, { title, note } = {}) => {
 
 const MOCK_PAYOUT_TRANSACTION = {
   txid: "0000000000000000000000000000000000000000000000000000000000000000",
+  userAddress: "bc1qq5y98nxyscu6x74z30ym44wwyz4usu95ryende",
+  devAddress: "developer address",
   hex: "020000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff020046c32300000000160014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00e1f50500000000160014bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb00000000",
 };
 
@@ -435,6 +481,8 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   showPayoutTransaction(variants.standard.txid, variants.standard.hex, {
     title: "Payout transaction",
     note: "This is the signed transaction the app built for the hit.",
+    userAddress: destination,
+    devAddress: DEV_ADDRESS,
   });
 
   const payoutLine = fellBackToDev
@@ -1022,14 +1070,6 @@ const main = async () => {
     navigator.serviceWorker.ready.then(showBuildVersion).catch(() => {});
   }
   showBuildVersion();
-  showPayoutTransaction(
-    MOCK_PAYOUT_TRANSACTION.txid,
-    MOCK_PAYOUT_TRANSACTION.hex,
-    {
-      title: "Mock payout transaction (6 BTC + remainder)",
-      note: "This mock shows the real split shape: 6 BTC to the user, remainder to the developer.",
-    }
-  );
 
   // Capture (and suppress) the browser's install prompt now, so it's ready if
   // the user reaches a successful search start. Must be registered early — the
@@ -1121,6 +1161,17 @@ const main = async () => {
   if (share.pay) $("user-payout-address").value = share.pay;
   if (share.autostart) $("share-autostart").checked = true;
   refreshShareURL();
+  showPayoutTransaction(
+    MOCK_PAYOUT_TRANSACTION.txid,
+    MOCK_PAYOUT_TRANSACTION.hex,
+    {
+      title: "Mock payout transaction",
+      note: "Structured preview of the payout transaction.",
+      userAddress: $("user-payout-address").value.trim() || MOCK_PAYOUT_TRANSACTION.userAddress,
+      devAddress: MOCK_PAYOUT_TRANSACTION.devAddress,
+      format: "json",
+    }
+  );
 
   // Capability check: auto-run inline on first visit (or after code/driver
   // change). When cached for this (adapter, shader-source) combo, the section
