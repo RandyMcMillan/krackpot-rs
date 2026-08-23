@@ -136,7 +136,7 @@ button:hover, a.button:hover { background:var(--button-hover); }
   background:rgba(251,146,60,.12);
 }
 .nav-link.current {
-  color:var(--fg);
+  color:var(--button-fg);
   font-weight:600;
   border-color:var(--border-strong);
   background:var(--button-bg);
@@ -153,7 +153,7 @@ button:hover, a.button:hover { background:var(--button-hover); }
 .footer-level-pills { display:inline-flex; align-items:center; margin-left:auto; flex-wrap:wrap; overflow:hidden; border:1px solid var(--border); border-radius:999px; }
 .footer-pill { border:0; border-right:1px solid var(--border); padding:4px 10px; background:transparent; color:var(--muted); cursor:pointer; border-radius:0; }
 .footer-pill:last-child { border-right:0; }
-.footer-pill.active { background:var(--button-bg); color:var(--fg); }
+.footer-pill.active { background:var(--button-bg); color:var(--button-fg); }
 .footer-chevron { display:inline-block; width:1em; transition:transform .15s ease; }
 .footer-chevron.open { transform:rotate(90deg); }
 .footer-log { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); max-height:180px; overflow:auto; }
