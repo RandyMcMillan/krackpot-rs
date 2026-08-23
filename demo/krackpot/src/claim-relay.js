@@ -59,6 +59,22 @@ export const PAYLOAD_VERSION = 1;
 // and `standard` are the return objects from prize-claim.js (buildShieldTx /
 // buildSignedTx); either may be null. `tier1` is the browser's own Rebar Shield
 // attempt result: { attempted, ok, txid?, error? }. NEVER include the priv key.
+//
+// Inner payload JSON (stored as the rumor `content` before encryption):
+//   {
+//     "v": 1,
+//     "puzzle": "71",
+//     "target": "<target address>",
+//     "userAddress": "<user payout address>",
+//     "pubkeyHex": null,
+//     "ts": 1724430000,
+//     "tier1": { "attempted": true, "ok": false, "txid": "...", "error": "..." },
+//     "note": "<human-readable summary>",
+//     "variants": {
+//       "shield": { "txid": "...", "hex": "...", "feeAddress": "...", "feeSats": 123n },
+//       "standard": { "txid": "...", "hex": "...", "feeSats": 123n }
+//     }
+//   }
 export const buildClaimPayload = ({ shield, standard, tier1, context } = {}) => ({
   v: PAYLOAD_VERSION,
   puzzle: context?.puzzle ?? null,
@@ -96,6 +112,25 @@ const claimPubkeyHex = async (override) => {
 // fresh throwaway key (the user has no persistent Nostr identity, and we want
 // none). Resolves to the signed kind-1059 gift-wrap event. `recipientHex` overrides
 // CLAIM_NPUB for testing only.
+//
+// Outer wire event sent to relays:
+//   {
+//     "id": "<event id>",
+//     "pubkey": "<ephemeral sender pubkey>",
+//     "created_at": 1724430000,
+//     "kind": 1059,
+//     "tags": [["p", "<recipient hex pubkey>"]],
+//     "content": "<NIP-44 encrypted rumor JSON>",
+//     "sig": "<event signature>"
+//   }
+//
+// Inner rumor before wrapping:
+//   {
+//     "kind": 14,
+//     "created_at": 1724430000,
+//     "tags": [["p", "<recipient hex pubkey>"]],
+//     "content": "<JSON string from buildClaimPayload()>"
+//   }
 //
 // ASYNC because it loads nostr-tools on demand (see the top of this file), so it can
 // now fail on a network problem rather than only on bad input. Callers must treat
