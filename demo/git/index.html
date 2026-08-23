@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <meta name="color-scheme" content="light dark" />
-<link rel="icon" href="/favicon.ico" />
+<link rel="icon" href="../shared/favicon.ico" />
 <link rel="stylesheet" href="../shared/page.css" />
 <title>nostr-dag Git Viewer</title>
 <style>
@@ -215,6 +215,7 @@
     createSharedHeader(document.getElementById('sharedHeader'), {
       title: 'nostr-dag',
       logoHref: resolveHref('../', window.location.href),
+      iconHref: resolveHref('../shared/favicon.ico', window.location.href),
       subtitleHtml: '',
       navItems: [
         { label: 'Demo', href: resolveHref('../', window.location.href) },

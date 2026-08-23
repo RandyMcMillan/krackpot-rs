@@ -21,6 +21,7 @@ export function createSharedHeader(root, options = {}) {
   const title = options.title || 'nostr-dag';
   const subtitleHtml = options.subtitleHtml || '';
   const logoHref = options.logoHref || '#';
+  const iconHref = options.iconHref || './shared/favicon.ico';
   const navItems = Array.isArray(options.navItems) ? options.navItems : [];
 
   root.classList.add('sticky-header');
@@ -28,7 +29,7 @@ export function createSharedHeader(root, options = {}) {
     <div class="header-container">
       <nav class="header-nav" aria-label="Primary navigation">
         <div class="header-brand">
-          <a href="${escapeHtml(logoHref)}"><img class="brand-icon" src="/favicon.ico" alt="" aria-hidden="true" /><span class="logo-text">${escapeHtml(title)}</span></a>
+          <a href="${escapeHtml(logoHref)}"><img class="brand-icon" src="${escapeHtml(iconHref)}" alt="" aria-hidden="true" /><span class="logo-text">${escapeHtml(title)}</span></a>
           ${subtitleHtml ? `<div class="muted header-subtitle">${subtitleHtml}</div>` : ''}
         </div>
         ${navItems.length ? `
