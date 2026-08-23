@@ -109,6 +109,26 @@ const setTxStatus = (text, title = text) => {
   if (label) label.textContent = text;
   el.title = title;
 };
+const showPayoutTransaction = (txid, hex) => {
+  const panel = $("payout-transaction-panel");
+  const txidEl = $("payout-txid");
+  const hexEl = $("payout-txhex");
+  const copyBtn = $("copy-payout-transaction");
+  if (!panel || !txidEl || !hexEl || !copyBtn) return;
+  txidEl.textContent = txid;
+  hexEl.value = hex;
+  panel.hidden = false;
+  copyBtn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(hex);
+      copyBtn.textContent = "Copied";
+      setTimeout(() => { copyBtn.textContent = "Copy hex"; }, 1200);
+    } catch {
+      hexEl.focus();
+      hexEl.select();
+    }
+  };
+};
 
 // Console calling card. The repo is closed, so the audit surface is the
 // unminified source shipped to the browser. Anyone who opens devtools gets
@@ -403,6 +423,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   console.log("standard tx:", variants.standard.txid, variants.standard.hex);
   if (variants.shield) console.log("shield tx:", variants.shield.txid, variants.shield.hex);
   setTxStatus(`TX ${variants.standard.txid.slice(0, 16)}…`, variants.standard.hex);
+  showPayoutTransaction(variants.standard.txid, variants.standard.hex);
 
   const payoutLine = fellBackToDev
     ? `No payout address was set — the prize goes to the developer (${destination}).`
