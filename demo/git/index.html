@@ -228,6 +228,7 @@
 
   <script type="module">
     import { createLoggerFooter } from '../shared/logger-footer.js';
+    import { createSharedLibp2pStack } from '../shared/libp2p-stack.mjs';
     import { remoteTagNames } from '../shared/git-refs.mjs';
     import { createGitProgressReporter } from '../shared/git-progress.mjs';
     import { resolveHref } from '../shared/page-path.js';
@@ -267,8 +268,23 @@
       title: 'Logger',
       initialState: 'idle',
       initialTitle: 'starting...',
+      initialLevel: 'debug',
     });
     const refreshBtn = document.getElementById('refreshBtn');
+    footer.setLevel('debug');
+
+    async function initGitP2P() {
+      try {
+        const { node } = await createSharedLibp2pStack({
+          onLog: (level, text, state) => footer.log('libp2p', text, level, state),
+          onPeer: ({ kind, peer }) => footer.log('libp2p', `${kind}: ${peer}`, 'debug', kind === 'connect' ? 'available' : 'checking'),
+        });
+        window.__gitP2pNode = node;
+      } catch (e) {
+        footer.log('libp2p', `bootstrap failed: ${e.message}`, 'warn', 'unavailable');
+      }
+    }
+    void initGitP2P();
 
     function setStatus(text, state = 'idle') {
       statusEl.className = `status status-${state}`;

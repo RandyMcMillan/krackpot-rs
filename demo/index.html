@@ -237,22 +237,11 @@
   <script type="module">
     // Step 4: import the WASM DAG and browser-only Nostr/libp2p helpers.
     import init, { WasmDag } from './pkg/nostr_dag.js';
+    import { createSharedLibp2pStack, DEFAULT_BOOTSTRAP_PEERS } from './shared/libp2p-stack.mjs';
     import { createReplicatedArchive } from './shared/p2p-archive.mjs';
     import { finalizeEvent, getPublicKey } from 'https://esm.sh/nostr-tools@2.10.4/pure';
     import { neventEncode, npubEncode } from 'https://esm.sh/nostr-tools@2.10.4/nip19';
     import { SimplePool } from 'https://esm.sh/nostr-tools@2.10.4/pool';
-    import { createLibp2p } from 'https://esm.sh/libp2p';
-    import { autoNAT } from 'https://esm.sh/@libp2p/autonat';
-    import { bootstrap } from 'https://esm.sh/@libp2p/bootstrap';
-    import { circuitRelayTransport } from 'https://esm.sh/@libp2p/circuit-relay-v2';
-    import { dcutr } from 'https://esm.sh/@libp2p/dcutr';
-    import { gossipsub } from 'https://esm.sh/@libp2p/gossipsub';
-    import { identify } from 'https://esm.sh/@libp2p/identify';
-    import { webSockets } from 'https://esm.sh/@libp2p/websockets';
-    import { webRTC } from 'https://esm.sh/@libp2p/webrtc';
-    import { webRTCDirect } from 'https://esm.sh/@libp2p/webrtc-direct';
-    import { noise } from 'https://esm.sh/@chainsafe/libp2p-noise';
-    import { yamux } from 'https://esm.sh/@chainsafe/libp2p-yamux';
 
     // Step 5: define the relay set and durable browser cache keys.
     const RELAYS = [
@@ -261,13 +250,6 @@
       'wss://relay.nostr.band',
       'wss://relay.primal.net',
       'wss://nostr.wine',
-    ];
-    const DEFAULT_BOOTSTRAP_PEERS = [
-      '/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ',
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN',
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa',
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb',
-      '/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt',
     ];
     const CACHE_KEY = 'krackpot-rs-demo-cache-v1';
     const BOOTSTRAP_KEY = 'krackpot-rs-demo-bootstrap-peers-v1';
@@ -514,56 +496,16 @@
     async function initLibp2pNode() {
       try {
         const bootstrapPeers = loadBootstrapPeers();
-        logLibp2p('info', `bootstrapping with ${bootstrapPeers.length} peer${bootstrapPeers.length === 1 ? '' : 's'}`);
-        const node = await createLibp2p({
-          transports: [
-            webSockets(),
-            webRTC(),
-            webRTCDirect(),
-            circuitRelayTransport({ discoverRelays: 2 }),
-          ],
-          connectionEncrypters: [noise()],
-          streamMuxers: [yamux()],
-          addresses: {
-            listen: ['/webrtc', '/p2p-circuit'],
+        const { node } = await createSharedLibp2pStack({
+          bootstrapPeers,
+          onLog: (level, text, state) => logLibp2p(level, text, state),
+          onPeer: ({ kind, peer }) => {
+            recordTelemetry(`peer-${kind}`, peer, kind !== 'disconnect');
+            updateLibp2pFooter();
           },
-          services: {
-            identify: identify(),
-            autoNAT: autoNAT(),
-            dcutr: dcutr(),
-            pubsub: gossipsub({
-              allowPublishToZeroTopicPeers: true,
-              emitSelf: true,
-            }),
-          },
-          peerDiscovery: bootstrapPeers.length ? [
-            bootstrap({
-              list: bootstrapPeers,
-              interval: 60_000,
-              timeout: 3_000,
-            }),
-          ] : [],
         });
-        await node.start();
         window.__libp2pNode = node;
-        const describePeerEvent = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || 'peer';
-        node.addEventListener('peer:connect', (event) => {
-          logLibp2p('info', `peer connected: ${describePeerEvent(event)}`);
-          recordTelemetry('peer-connect', describePeerEvent(event), true);
-          updateLibp2pFooter();
-        });
-        node.addEventListener('peer:disconnect', (event) => {
-          logLibp2p('debug', `peer disconnected: ${describePeerEvent(event)}`);
-          recordTelemetry('peer-disconnect', describePeerEvent(event), true);
-          updateLibp2pFooter();
-        });
-        node.addEventListener('peer:discovery', (event) => {
-          const peer = describePeerEvent(event);
-          logLibp2p('debug', `peer discovered: ${peer}`);
-          recordTelemetry('peer-discovery', peer, true);
-        });
         setLibp2pStatus(node.peerId.toString());
-        logLibp2p('info', `node started: ${node.peerId.toString()}`);
         distributedArchive = await createReplicatedArchive({
           namespace: CACHE_KEY,
           topic: 'krackpot-rs/demo-state/v1',
@@ -1463,7 +1405,9 @@
       title: 'Logger',
       initialState: 'idle',
       initialTitle: 'starting...',
+      initialLevel: 'debug',
     });
+    window.__sharedFooter.setLevel('debug');
     window.__libp2pModuleRegistry = registry;
     window.__setLibp2pModuleCounts?.({ loaded, failed, total: modules.length });
   </script>

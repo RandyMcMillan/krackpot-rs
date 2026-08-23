@@ -21,6 +21,12 @@ export const DEFAULT_BOOTSTRAP_PEERS = [
 
 const peerLabel = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || "peer";
 
+const emitPeerEvent = (onPeer, onLog, kind, event, level = "debug", state = "checking") => {
+  const peer = peerLabel(event);
+  onPeer?.({ kind, peer, detail: event?.detail || null });
+  onLog?.(level, `peer ${kind}: ${peer}`, state);
+};
+
 export async function createSharedLibp2pStack({
   bootstrapPeers = DEFAULT_BOOTSTRAP_PEERS,
   onLog,
@@ -62,19 +68,13 @@ export async function createSharedLibp2pStack({
   });
 
   node.addEventListener("peer:discovery", (event) => {
-    const peer = peerLabel(event);
-    onPeer?.({ kind: "discovery", peer });
-    onLog?.("debug", `peer discovered: ${peer}`, "checking");
+    emitPeerEvent(onPeer, onLog, "discovered", event, "debug", "checking");
   });
   node.addEventListener("peer:connect", (event) => {
-    const peer = peerLabel(event);
-    onPeer?.({ kind: "connect", peer });
-    onLog?.("info", `peer connected: ${peer}`, "available");
+    emitPeerEvent(onPeer, onLog, "connected", event, "info", "available");
   });
   node.addEventListener("peer:disconnect", (event) => {
-    const peer = peerLabel(event);
-    onPeer?.({ kind: "disconnect", peer });
-    onLog?.("debug", `peer disconnected: ${peer}`, "checking");
+    emitPeerEvent(onPeer, onLog, "disconnected", event, "debug", "checking");
   });
 
   await node.start();

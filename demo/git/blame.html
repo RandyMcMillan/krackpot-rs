@@ -152,6 +152,7 @@
   <script type="module">
     import { createSharedHeader } from '../shared/page-header.mjs';
     import { createLoggerFooter } from '../shared/logger-footer.js';
+    import { createSharedLibp2pStack } from '../shared/libp2p-stack.mjs';
     import { remoteTagNames } from '../shared/git-refs.mjs';
     import { createGitProgressReporter } from '../shared/git-progress.mjs';
     import { resolveHref } from '../shared/page-path.js';
@@ -160,7 +161,8 @@
     import LightningFS from 'https://cdn.jsdelivr.net/npm/@isomorphic-git/lightning-fs@4.6.0/+esm';
 
     const fs = new LightningFS('git-viewer');
-    const footer = createLoggerFooter(document.getElementById('pageFooter'), { title: 'Logger', initialState: 'idle', initialTitle: 'starting...' });
+    const footer = createLoggerFooter(document.getElementById('pageFooter'), { title: 'Logger', initialState: 'idle', initialTitle: 'starting...', initialLevel: 'debug' });
+    footer.setLevel('debug');
     const statusEl = document.getElementById('status');
     const viewEl = document.getElementById('view');
     const repos = [
@@ -180,6 +182,19 @@
         { label: 'Source', href: resolveHref('../krackpot/source/', window.location.href), target: '_blank' },
       ],
     });
+
+    async function initGitP2P() {
+      try {
+        const { node } = await createSharedLibp2pStack({
+          onLog: (level, text, state) => footer.log('libp2p', text, level, state),
+          onPeer: ({ kind, peer }) => footer.log('libp2p', `${kind}: ${peer}`, 'debug', kind === 'connect' ? 'available' : 'checking'),
+        });
+        window.__gitBlameP2pNode = node;
+      } catch (e) {
+        footer.log('libp2p', `bootstrap failed: ${e.message}`, 'warn', 'unavailable');
+      }
+    }
+    void initGitP2P();
 
     function escapeHtml(value) { return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#39;'); }
     function setStatus(text, state = 'idle') { statusEl.className = `status status-${state}`; statusEl.title = text; footer.log('git', text, 'trace', state); }

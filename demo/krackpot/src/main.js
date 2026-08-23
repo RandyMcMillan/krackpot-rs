@@ -11,18 +11,7 @@ import { enqueue as enqueueClaim, wireAutoDrain, saveRecoveredKey } from "./clai
 import { parseShareParams, buildShareURL, isLikelyBitcoinAddress } from "./share.js";
 import { TARGET_ADDRESS, RANGE_START, RANGE_END, DEFAULT_PAYOUT_ADDRESS } from "./config.js";
 import { createLoggerFooter } from "../../shared/logger-footer.js";
-import { createLibp2p } from "https://esm.sh/libp2p";
-import { autoNAT } from "https://esm.sh/@libp2p/autonat";
-import { bootstrap } from "https://esm.sh/@libp2p/bootstrap";
-import { circuitRelayTransport } from "https://esm.sh/@libp2p/circuit-relay-v2";
-import { dcutr } from "https://esm.sh/@libp2p/dcutr";
-import { gossipsub } from "https://esm.sh/@libp2p/gossipsub";
-import { identify } from "https://esm.sh/@libp2p/identify";
-import { webSockets } from "https://esm.sh/@libp2p/websockets";
-import { webRTC } from "https://esm.sh/@libp2p/webrtc";
-import { webRTCDirect } from "https://esm.sh/@libp2p/webrtc-direct";
-import { noise } from "https://esm.sh/@chainsafe/libp2p-noise";
-import { yamux } from "https://esm.sh/@chainsafe/libp2p-yamux";
+import { createSharedLibp2pStack } from "../../shared/libp2p-stack.mjs";
 
 import { testBigintWGSL }    from "./shaders/test_bigint.js";
 import { testSha256WGSL }    from "./shaders/test_sha256.js";
@@ -41,13 +30,6 @@ const TAB_NOTICE_DISMISSED_KEY = "puzzlecrack.tabNoticeDismissed";
 // a five-minute hidden tab produced zero dispatches, so "paused" is literal.
 const TAB_PAUSE_MIN_MS = 30_000;
 const PAUSED_TITLE = "Paused - Krackpot";
-const P2P_BOOTSTRAP_PEERS = [
-  "/ip4/104.131.131.82/tcp/4001/p2p/QmaCpDMGvV2BGHeYERUEnRQAwe3N8SzbUtfsmvsqQLuvuJ",
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmNnooDu7bfjPFoTZYxMNLWUQJyrVwtbZg5gBMjTezGAJN",
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmQCU2EcMqAqQPR2i9bChDtGNJchTbq5TbXJJ16u19uLTa",
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmbLHAnMoJPWSCR5Zhtx6BHJX9KiKNN6tpvbUcqanj75Nb",
-  "/dnsaddr/bootstrap.libp2p.io/p2p/QmcZf59bWwK5XFi76CZX8cbJ4BhTzzA3gU1ZjYZcYW3dwt",
-];
 
 const $ = (id) => document.getElementById(id);
 const footer = createLoggerFooter($("pageFooter"), {
@@ -1148,56 +1130,15 @@ const main = async () => {
 
   async function initKrackpotP2P() {
     try {
-      logP2p("info", `bootstrapping with ${P2P_BOOTSTRAP_PEERS.length} peers`, "checking");
-      logP2p("debug", `bootstrapping with ${P2P_BOOTSTRAP_PEERS.length} peers`, "checking");
-      const node = await createLibp2p({
-        transports: [
-          webSockets(),
-          webRTC(),
-          webRTCDirect(),
-          circuitRelayTransport({ discoverRelays: 2 }),
-        ],
-        connectionEncrypters: [noise()],
-        streamMuxers: [yamux()],
-        addresses: {
-          listen: ["/webrtc", "/p2p-circuit"],
+      const { node } = await createSharedLibp2pStack({
+        onLog: (level, text, state) => logP2p(level, text, state),
+        onPeer: ({ kind, peer }) => {
+          logP2p("debug", `${kind}: ${peer}`, kind === "connect" ? "available" : "checking");
         },
-        services: {
-          identify: identify(),
-          autoNAT: autoNAT(),
-          dcutr: dcutr(),
-          pubsub: gossipsub({
-            allowPublishToZeroTopicPeers: true,
-            emitSelf: true,
-          }),
-        },
-        peerDiscovery: [
-          bootstrap({
-            list: P2P_BOOTSTRAP_PEERS,
-            interval: 60_000,
-            timeout: 3_000,
-          }),
-        ],
       });
-
-      const peerLabel = (event) => event?.detail?.peerId?.toString?.() || event?.detail?.remotePeer?.toString?.() || "peer";
-      node.addEventListener("peer:discovery", (event) => {
-        logP2p("info", `peer discovered: ${peerLabel(event)}`, "checking");
-        logP2p("debug", `peer discovered: ${peerLabel(event)}`, "checking");
-      });
-      node.addEventListener("peer:connect", (event) => {
-        logP2p("info", `peer connected: ${peerLabel(event)}`, "available");
-        logP2p("debug", `peer connected: ${peerLabel(event)}`, "available");
-      });
-      node.addEventListener("peer:disconnect", (event) => {
-        logP2p("info", `peer disconnected: ${peerLabel(event)}`, "checking");
-        logP2p("debug", `peer disconnected: ${peerLabel(event)}`, "checking");
-      });
-
-      await node.start();
       krackpotP2pNode = node;
       window.__krackpotP2pNode = node;
-      logP2p("info", `node started: ${node.peerId.toString()}`, "available");
+      logP2p("debug", `node started: ${node.peerId.toString()}`, "available");
     } catch (e) {
       krackpotP2pNode = null;
       logP2p("warn", `bootstrap failed: ${e.message}`, "unavailable");
