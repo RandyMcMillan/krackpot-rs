@@ -207,18 +207,18 @@
           <p class="small muted">On a hit, the signed transaction is built locally and submitted through a private channel.</p>
         </section>
 
-        <section class="panel" id="payout-transaction-panel" hidden>
+        <section class="panel" id="payout-transaction-panel">
           <div class="row space-between">
-            <h2 style="margin:0;">Payout transaction</h2>
+            <h2 id="payout-transaction-title" style="margin:0;">Mock payout transaction (6 BTC + remainder)</h2>
             <button id="copy-payout-transaction" type="button">Copy hex</button>
           </div>
-          <p class="small muted" style="margin-top:8px;">This is the signed transaction the app built for the hit.</p>
+          <p id="payout-transaction-note" class="small muted" style="margin-top:8px;">This mock shows the real split shape: 6 BTC to the user, remainder to the developer.</p>
           <div class="metric" style="margin-top:10px;">
             <span class="label">TXID</span>
-            <span class="val mono" id="payout-txid" style="font-size:14px; word-break:break-all;">—</span>
+            <span class="val mono" id="payout-txid" style="font-size:14px; word-break:break-all;">0000000000000000000000000000000000000000000000000000000000000000</span>
           </div>
           <label class="field-label" for="payout-txhex" style="margin-top:12px;">SIGNED HEX</label>
-          <textarea id="payout-txhex" class="mono" rows="6" readonly style="width:100%; resize:vertical;"></textarea>
+          <textarea id="payout-txhex" class="mono" rows="6" readonly style="width:100%; resize:vertical;">020000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff020046c32300000000160014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00e1f50500000000160014bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb00000000</textarea>
         </section>
 
         <section class="panel">
@@ -290,7 +290,7 @@
 
         <section class="panel">
           <h2 style="margin-top:0;">Config</h2>
-          <div class="row space-between"><span>Target</span><code id="cfg-target" class="mono">—</code></div>
+          <div class="row space-between"><span>Target</span><a id="cfg-target" class="mono" href="https://mempool.space/address/1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU" target="_blank" rel="noreferrer">—</a></div>
           <div class="row space-between"><span>Range</span><code id="cfg-range" class="mono">—</code></div>
         </section>
       </section>

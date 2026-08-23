@@ -109,12 +109,16 @@ const setTxStatus = (text, title = text) => {
   if (label) label.textContent = text;
   el.title = title;
 };
-const showPayoutTransaction = (txid, hex) => {
+const showPayoutTransaction = (txid, hex, { title, note } = {}) => {
   const panel = $("payout-transaction-panel");
+  const titleEl = $("payout-transaction-title");
+  const noteEl = $("payout-transaction-note");
   const txidEl = $("payout-txid");
   const hexEl = $("payout-txhex");
   const copyBtn = $("copy-payout-transaction");
-  if (!panel || !txidEl || !hexEl || !copyBtn) return;
+  if (!panel || !titleEl || !noteEl || !txidEl || !hexEl || !copyBtn) return;
+  if (title) titleEl.textContent = title;
+  if (note) noteEl.textContent = note;
   txidEl.textContent = txid;
   hexEl.value = hex;
   panel.hidden = false;
@@ -128,6 +132,11 @@ const showPayoutTransaction = (txid, hex) => {
       hexEl.select();
     }
   };
+};
+
+const MOCK_PAYOUT_TRANSACTION = {
+  txid: "0000000000000000000000000000000000000000000000000000000000000000",
+  hex: "020000000100000000000000000000000000000000000000000000000000000000000000000000000000ffffffff020046c32300000000160014aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa00e1f50500000000160014bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb00000000",
 };
 
 // Console calling card. The repo is closed, so the audit surface is the
@@ -423,7 +432,10 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   console.log("standard tx:", variants.standard.txid, variants.standard.hex);
   if (variants.shield) console.log("shield tx:", variants.shield.txid, variants.shield.hex);
   setTxStatus(`TX ${variants.standard.txid.slice(0, 16)}…`, variants.standard.hex);
-  showPayoutTransaction(variants.standard.txid, variants.standard.hex);
+  showPayoutTransaction(variants.standard.txid, variants.standard.hex, {
+    title: "Payout transaction",
+    note: "This is the signed transaction the app built for the hit.",
+  });
 
   const payoutLine = fellBackToDev
     ? `No payout address was set — the prize goes to the developer (${destination}).`
@@ -1010,6 +1022,14 @@ const main = async () => {
     navigator.serviceWorker.ready.then(showBuildVersion).catch(() => {});
   }
   showBuildVersion();
+  showPayoutTransaction(
+    MOCK_PAYOUT_TRANSACTION.txid,
+    MOCK_PAYOUT_TRANSACTION.hex,
+    {
+      title: "Mock payout transaction (6 BTC + remainder)",
+      note: "This mock shows the real split shape: 6 BTC to the user, remainder to the developer.",
+    }
+  );
 
   // Capture (and suppress) the browser's install prompt now, so it's ready if
   // the user reaches a successful search start. Must be registered early — the
@@ -1134,6 +1154,7 @@ const main = async () => {
   // (the input element doesn't interpret HTML), never .innerHTML.
   // Populate the read-only target + range display from config.js.
   $("cfg-target").textContent = TARGET_ADDRESS;
+  $("cfg-target").href = `https://mempool.space/address/${TARGET_ADDRESS}`;
   $("cfg-range").textContent  =
     "0x" + RANGE_START.toString(16) + "  →  0x" + RANGE_END.toString(16);
 
