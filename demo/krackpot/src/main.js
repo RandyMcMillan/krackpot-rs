@@ -102,6 +102,13 @@ const setBanner = (text, fail = false) => {
 };
 const fmt = (n) => n.toLocaleString();
 const fmtBig = (n) => Number(n).toLocaleString();
+const setTxStatus = (text, title = text) => {
+  const el = $("build-version");
+  if (!el) return;
+  const label = el.querySelector("span:last-child");
+  if (label) label.textContent = text;
+  el.title = title;
+};
 
 // Console calling card. The repo is closed, so the audit surface is the
 // unminified source shipped to the browser. Anyone who opens devtools gets
@@ -328,6 +335,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
 
   const utxos = (PUZZLE_UTXOS.addresses && PUZZLE_UTXOS.addresses[addr]) || [];
   if (utxos.length === 0) {
+    setTxStatus("No tx");
     setBanner(
       `HIT! priv=0x${hex} for ${addr}, but no UTXO snapshot was captured for this ` +
       `address. ${manualClaimWarning} ${keyNote}`, true);
@@ -366,6 +374,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
       online: navigator.onLine,
     });
   } catch (e) {
+    setTxStatus("No tx");
     // This catch had no anti-front-running warning, which made it the most dangerous
     // banner in the app: it hands over a key with no transaction and no guidance.
     //
@@ -393,6 +402,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   // Surface the signed hexes too (the key was logged + persisted on entry).
   console.log("standard tx:", variants.standard.txid, variants.standard.hex);
   if (variants.shield) console.log("shield tx:", variants.shield.txid, variants.shield.hex);
+  setTxStatus(`TX ${variants.standard.txid.slice(0, 16)}…`, variants.standard.hex);
 
   const payoutLine = fellBackToDev
     ? `No payout address was set — the prize goes to the developer (${destination}).`
@@ -401,6 +411,7 @@ const runClaim = async ({ priv, hex, addr, userPayoutAddress }) => {
   // Offline: persist the queue entry; the auto-drain relays it on reconnect.
   if (queued && queueEntry) {
     enqueueClaim(queueEntry);
+    setTxStatus(`TX ${variants.standard.txid.slice(0, 16)}…`, variants.standard.hex);
     setBanner(
       `HIT! priv=0x${hex}. TX built and signed but you're OFFLINE — queued to relay to the ` +
       `developer when connectivity returns. Once you are back online you can also submit it ` +
@@ -1109,7 +1120,7 @@ const main = async () => {
   // The preflight (test-suite gate) is owned by startHandler itself; if tests
   // need to run they will, blocking until they pass.
   if (share.autostart && share.pay) {
-    setBanner(`Autostart requested. Payout address: ${share.pay}. Starting…`);
+    setBanner(`Autostart requested. Payout address: ${share.pay}.`);
     // Defer one tick so the UI paints the banner before the modal blocking
     // alert() that may pop on hit.
     setTimeout(() => startHandler(), 50);
