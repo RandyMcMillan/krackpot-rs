@@ -479,6 +479,12 @@
 
     function logDemo(level, text, state = null) {
       window.__sharedFooter?.log('demo', text, level, state);
+      const method = console[level] || console.log;
+      try {
+        method.call(console, `demo:${level}`, text);
+      } catch {
+        console.log('demo:log', level, text);
+      }
     }
 
     function setLibp2pStatus(text) {
