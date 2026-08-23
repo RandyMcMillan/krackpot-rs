@@ -1,15 +1,15 @@
 :root {
   color-scheme: light dark;
   --bg:#0f172a; --fg:#e2e8f0; --muted:#94a3b8; --panel:#111827; --surface:#0b1220; --surface-strong:#020617;
-  --border:#334155; --border-strong:#6d28d9; --input-bg:#020617; --input-fg:#e2e8f0;
-  --accent:#a78bfa; --button-bg:#4c1d95; --button-hover:#5b21b6; --status-bg:#1f2937; --shadow:rgba(0,0,0,.45);
+  --border:#334155; --border-strong:#fb923c; --input-bg:#020617; --input-fg:#e2e8f0;
+  --accent:#fb923c; --button-bg:#c2410c; --button-hover:#ea580c; --status-bg:#1f2937; --shadow:rgba(0,0,0,.45);
 }
 
 @media (prefers-color-scheme: light) {
   :root {
     --bg:#f8fafc; --fg:#0f172a; --muted:#475569; --panel:#ffffff; --surface:#f1f5f9; --surface-strong:#e2e8f0;
-    --border:#cbd5e1; --border-strong:#7c3aed; --input-bg:#ffffff; --input-fg:#0f172a;
-    --accent:#6d28d9; --button-bg:#7c3aed; --button-hover:#6d28d9; --status-bg:#e2e8f0; --shadow:rgba(15,23,42,.12);
+    --border:#cbd5e1; --border-strong:#ea580c; --input-bg:#ffffff; --input-fg:#0f172a;
+    --accent:#ea580c; --button-bg:#f97316; --button-hover:#ea580c; --status-bg:#e2e8f0; --shadow:rgba(15,23,42,.12);
   }
 }
 
@@ -127,7 +127,7 @@ button:hover, a.button:hover { background:var(--button-hover); }
 .nav-links a:hover {
   color:var(--fg);
   border-color:var(--accent);
-  background:rgba(167,139,250,.12);
+  background:rgba(251,146,60,.12);
 }
 .nav-link.current {
   color:var(--fg);
