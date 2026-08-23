@@ -79,6 +79,8 @@ export const createReplicatedArchive = async ({
 
   emitStatus(`archive db ready: ${dbName}`, true);
   emitStatus(`archive topic: ${topic}`, true);
+  emitStatus(`archive pubsub: ${pubsub ? "available" : "missing"}`, !!pubsub);
+  emitStatus(`archive records seen: ${seenIds.size}`, true);
 
   const applyRecord = async (record, { local = false } = {}) => {
     if (!record || typeof record !== "object") return false;
@@ -87,6 +89,7 @@ export const createReplicatedArchive = async ({
     await putRecord(db, storeName, record);
     onRecord?.(record, { local });
     emitStatus(`${local ? "stored local" : "stored remote"} ${record.type}: ${record.id}`, true);
+    emitStatus(`archive record payload keys: ${Object.keys(record.payload || {}).join(",") || "none"}`, true);
 
     if (record.type === "snapshot") {
       const currentTime = latestSnapshot?.createdAt ?? 0;
@@ -101,6 +104,7 @@ export const createReplicatedArchive = async ({
   };
 
   const publishRecord = async (type, payload, meta = {}) => {
+    emitStatus(`publishing ${type}`, true);
     const snapshot = {
       id: meta.id || await sha256Hex(stableStringify({
         namespace,
@@ -117,6 +121,7 @@ export const createReplicatedArchive = async ({
     };
 
     await applyRecord(snapshot, { local: true });
+    emitStatus(`built ${type} ${snapshot.id}`, true);
 
     if (!pubsub?.publish) return snapshot;
     if (publishing) return snapshot;
@@ -135,11 +140,15 @@ export const createReplicatedArchive = async ({
   };
 
   const syncSnapshot = async () => {
+    emitStatus("sync snapshot start", true);
     const payload = buildSnapshot();
-    return publishRecord("snapshot", payload);
+    const result = await publishRecord("snapshot", payload);
+    emitStatus("sync snapshot done", true);
+    return result;
   };
 
   const loadLatest = async () => {
+    emitStatus("loading latest snapshot", true);
     if (latestSnapshot) {
       emitStatus(`reusing latest snapshot ${latestSnapshot.id}`, true);
       applySnapshot(latestSnapshot.payload, { local: true, record: latestSnapshot });
@@ -149,16 +158,22 @@ export const createReplicatedArchive = async ({
     const all = await getAllRecords(db, storeName);
     const snapshots = all.filter((record) => record.type === "snapshot");
     emitStatus(`loaded ${all.length} stored record${all.length === 1 ? "" : "s"}`, true);
+    emitStatus(`loaded ${snapshots.length} stored snapshot${snapshots.length === 1 ? "" : "s"}`, true);
     latestSnapshot = snapshots.sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id)).at(-1) || null;
     if (latestSnapshot) {
       emitStatus(`loaded latest snapshot ${latestSnapshot.id}`, true);
       applySnapshot(latestSnapshot.payload, { local: true, record: latestSnapshot });
+    } else {
+      emitStatus("no stored snapshots found", true);
     }
     return latestSnapshot;
   };
 
   const subscribe = async () => {
-    if (!pubsub?.subscribe) return;
+    if (!pubsub?.subscribe) {
+      emitStatus("pubsub subscribe unavailable", false);
+      return;
+    }
     emitStatus(`subscribing to ${topic}`, true);
     await pubsub.subscribe(topic);
     pubsub.addEventListener?.("message", async (event) => {
@@ -167,6 +182,7 @@ export const createReplicatedArchive = async ({
       const messageTopic = detail?.topic || detail?.message?.topic;
       if (messageTopic !== topic || !data) return;
       try {
+        emitStatus(`received p2p message (${data.byteLength || data.length || 0} bytes)`, true);
         const record = JSON.parse(decoder.decode(data));
         emitStatus(`received remote ${record?.type || "record"} ${record?.id || "unknown"}`, true);
         await applyRecord(record, { local: false });
@@ -177,6 +193,7 @@ export const createReplicatedArchive = async ({
   };
 
   const start = async () => {
+    emitStatus("archive start", true);
     await loadLatest();
     await subscribe();
     await syncSnapshot();
@@ -187,6 +204,7 @@ export const createReplicatedArchive = async ({
     try {
       emitStatus(`unsubscribing from ${topic}`, true);
       await pubsub?.unsubscribe?.(topic);
+      emitStatus("archive stopped", true);
     } catch {
       // best-effort
     }
