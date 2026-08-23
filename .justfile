@@ -33,6 +33,7 @@ site: wasm
     mkdir -p site
     cp demo/index.html site/index.html
     mkdir -p site/shared
+    cp demo/shared/page.css site/shared/
     cp demo/shared/*.js demo/shared/*.mjs site/shared/
     mkdir -p site/git
     cp demo/git/index.html site/git/index.html
