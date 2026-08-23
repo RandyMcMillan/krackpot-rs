@@ -83,6 +83,17 @@ fn valid_scalar_vectors_match_expected_outputs() {
 
     for vector in vectors {
         let (wif, address) = derive(vector.n, vector.compressed);
+        println!(
+            "N={}, WIF={}, Address Type={}, P2PKH Address={}",
+            vector.n,
+            wif,
+            if vector.compressed {
+                "Compressed"
+            } else {
+                "Uncompressed"
+            },
+            address
+        );
         assert_eq!(wif, vector.wif, "WIF mismatch for N={}", vector.n);
         assert_eq!(address, vector.address, "address mismatch for N={}", vector.n);
     }
