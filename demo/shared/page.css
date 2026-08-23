@@ -2,7 +2,7 @@
   color-scheme: light dark;
   --bg:#0f172a; --fg:#e2e8f0; --muted:#94a3b8; --panel:#111827; --surface:#0b1220; --surface-strong:#020617;
   --border:#334155; --border-strong:#fb923c; --input-bg:#020617; --input-fg:#e2e8f0;
-  --accent:#fb923c; --button-bg:#c2410c; --button-hover:#ea580c; --status-bg:#1f2937; --shadow:rgba(0,0,0,.45);
+  --accent:#fb923c; --button-bg:#c2410c; --button-hover:#ea580c; --button-fg:#ffffff; --status-bg:#1f2937; --shadow:rgba(0,0,0,.45);
   --status-checking:#f59e0b; --status-available:#22c55e; --status-unavailable:#ef4444;
   --diff-add:#22c55e; --diff-del:#ef4444; --success-link:#22c55e;
   --chip-canonical-bg:#14532d; --chip-pending-bg:#7c2d12;
@@ -12,7 +12,7 @@
   :root {
     --bg:#f8fafc; --fg:#0f172a; --muted:#475569; --panel:#ffffff; --surface:#f1f5f9; --surface-strong:#e2e8f0;
     --border:#cbd5e1; --border-strong:#ea580c; --input-bg:#ffffff; --input-fg:#0f172a;
-    --accent:#ea580c; --button-bg:#f97316; --button-hover:#ea580c; --status-bg:#e2e8f0; --shadow:rgba(15,23,42,.12);
+    --accent:#ea580c; --button-bg:#f97316; --button-hover:#ea580c; --button-fg:#ffffff; --status-bg:#e2e8f0; --shadow:rgba(15,23,42,.12);
     --status-checking:#d97706; --status-available:#15803d; --status-unavailable:#dc2626;
     --diff-add:#15803d; --diff-del:#dc2626; --success-link:#15803d;
     --chip-canonical-bg:#dcfce7; --chip-pending-bg:#ffedd5;
@@ -57,7 +57,7 @@ body {
 
 button, a.button {
   background:var(--button-bg);
-  color:var(--fg);
+  color:var(--button-fg);
   border:1px solid var(--border-strong);
   border-radius:6px;
   padding:8px 12px;
